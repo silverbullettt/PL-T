@@ -1,6 +1,7 @@
 #lang racket
 (require rnrs/io/ports-6)
-(require "o-lex/PL0-lex-parser.rkt")
+(require "scanner/PL0-scanner.rkt"
+         "parser/parser.rkt")
 
 (define (read-string-from-file filename)
   ; source code must be wrotten by latin-1-codec
@@ -9,6 +10,8 @@
                     (make-transcoder (latin-1-codec)))))
 
 (define (compile filename)
-  (PL/0-lex-parser (read-string-from-file filename)))
+  (PL/0-parser
+    (PL/0-scanner (read-string-from-file filename))))
 
-(compile "test.pl")
+(define t (compile "test.pl"))
+(print-node t)
