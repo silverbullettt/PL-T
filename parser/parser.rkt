@@ -192,7 +192,7 @@
   (begin
     (printf "~a[~a" (make-string depth #\space) (tree-type t))
     (cond [(flat-tree? t)
-           (printf " ~a]" (to-string (tree-content t)))]
+           (printf " ~a" (to-string (tree-content t)))]
           [(tree? (tree-content t))
            (begin
              (printf "~%~a" (make-string (+ depth 1) #\space))
@@ -210,4 +210,5 @@
                                             (printf "~%~a" (make-string (+ depth 1) #\space))
                                             (print-tree tr (+ depth 1)))) x)]
                              [else (printf " ~a" (to-string x))]))
-                     (tree-content t))])))
+                     (tree-content t))])
+    (printf "]")))
