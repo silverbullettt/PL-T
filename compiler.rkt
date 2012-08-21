@@ -14,4 +14,4 @@
     (PL/0-scanner (read-string-from-file filename))))
 
 (define t (compile "test.pl"))
-(print-node t)
+(print-tree t)

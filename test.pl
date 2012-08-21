@@ -1,10 +1,9 @@
 CONST
-  m =  7,
+  m = 7,
   n = 85;
  
 VAR
   x, y, z, q, r;
- 
 PROCEDURE multiply;
 VAR a, b;
  
@@ -28,7 +27,7 @@ BEGIN
   WHILE w <= r DO w := 2 * w;
   WHILE w > y DO BEGIN
     q := 2 * q;
-    w := w / 2;
+w := w / 2;
     IF w <= r THEN BEGIN
       r := r - w;
       q := q + 1
@@ -53,7 +52,7 @@ BEGIN
   y := n;
   CALL multiply;
   x := 25;
-  y :=  3;
+  y := 3;
   CALL divide;
   x := 84;
   y := 36;
