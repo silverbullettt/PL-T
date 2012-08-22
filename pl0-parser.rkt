@@ -2,6 +2,28 @@
 (require "pl0-scanner.rkt" "define.rkt")
 (provide PL/0-parser print-tree)
 
+; The syntax parser of PL/0
+
+; program = block "." .
+;
+; block = [ "const" ident "=" number {"," ident "=" number} ";"]
+;         [ "var" ident {"," ident} ";"]
+;         { "procedure" ident ";" block ";" } statement .
+;
+; statement = [ ident ":=" expression | "call" ident |
+;             "begin" statement {";" statement } "end" |
+;             "if" condition "then" statement |
+;             "while" condition "do" statement ].
+;
+; condition = "odd" expression |
+;             expression ("="|"#"|"<"|"<="|">"|">=") expression .
+;
+; expression = [ "+"|"-"] term { ("+"|"-") term}.
+;
+; term = factor {("*"|"/") factor}.
+;
+; factor = ident | number | "(" expression ")".
+
 
 (define (PL/0-parser tokens)
   
@@ -21,16 +43,17 @@
     (let ([tok (get-token)])
       (if (match? tok-type)
           (get-token!)
-          (error 'PL/0-parser "Error token: ~a, excepted: ~a, given: ~a line ~a:~a"
+          (error 'PL/0-parser "Error token: ~a, excepted: ~a, given: ~a -- L~a:~a"
                  (second tok) tok-type (first tok) (third tok) (fourth tok)))))
  
   (define (get-id-inf tok)
     (list (second tok) (cons (third tok) (fourth tok))))
   (define (make-id tok)
     (make-tree 'ident (get-id-inf tok)))
-  (define (report-error type)
+  (define (report-error type expected [tok (get-token)])
     (error 'PL/0-parser
-           "syntax error in (~a), token: ~a in L~a" type (get-token) (third (get-token))))
+           "syntax error in (~a), excepted: ~a, given: ~a -- L~a:~a"
+           type expected (second tok) (third tok) (fourth tok)))
 
   (define (program)
     (let ([blk (block)])
@@ -58,7 +81,7 @@
         (match (get-type delim)
           ['\, (cons (list (make-id id) (second num)) (iter))]
           ['\; (list (list (make-id id) (second num)))]
-          [_ (report-error 'const)])))
+          [_ (report-error 'const '(\, \;) delim)])))
     (let* ([con (match! 'const)] [content (iter)])
       (make-tree 'const content)))
  
@@ -68,7 +91,7 @@
         (match (get-type delim)
           ['\, (cons (make-id id) (iter))]
           ['\; (list (make-id id))]
-          [_ (report-error 'var)])))
+          [_ (report-error 'var '(\, \;) delim)])))
     (let* ([con (match! 'var)] [content (iter)])
       (make-tree 'var content)))
   
@@ -94,7 +117,7 @@
         ['\; (begin (match! '\;)
                     (cons (statement) (iter)))]
         ['end '()]
-        [_ (report-error 'statement-begin)]))
+        [_ (report-error 'statement-begin '(\; end))]))
     (let ([stmts null])
       (begin (match! 'begin)
              (set! stmts (cons (statement) (iter)))
@@ -172,7 +195,7 @@
                (match! '\() (set! expr (exp)) (match! '\))
                expt))]
       [#f '()]
-      [_ (report-error 'factor)]))
+      [_ (report-error 'factor '(number ident \())]))
   
   (if (null? tokens)
       null
