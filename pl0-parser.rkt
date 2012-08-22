@@ -1,9 +1,6 @@
 #lang racket
-(require "../scanner/pl0-scanner.rkt" "const.rkt")
-(provide PL/0-parser print-tree
-         tree-type tree-content)
-
-(define-struct tree (type content) #:mutable)
+(require "pl0-scanner.rkt" "define.rkt")
+(provide PL/0-parser print-tree)
 
 
 (define (PL/0-parser tokens)

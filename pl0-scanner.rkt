@@ -1,5 +1,5 @@
 #lang racket
-(require "lex-parser.rkt")
+(require "o-lex/lex-parser.rkt")
 (provide PL/0-scanner)
 
 (define PL/0-scanner
