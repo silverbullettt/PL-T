@@ -1,7 +1,7 @@
 #lang racket
 (require rnrs/io/ports-6)
 (require "scanner/PL0-scanner.rkt"
-         "parser/parser.rkt")
+         "parser/PL0-parser.rkt")
 
 (define (read-string-from-file filename)
   ; source code must be wrotten by latin-1-codec

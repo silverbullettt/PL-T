@@ -1,6 +1,7 @@
 #lang racket
 (require "../scanner/pl0-scanner.rkt" "const.rkt")
-(provide PL/0-parser print-tree tree-content)
+(provide PL/0-parser print-tree
+         tree-type tree-content)
 
 (define-struct tree (type content) #:mutable)
 
@@ -26,7 +27,10 @@
           (error 'PL/0-parser "Error token: ~a, excepted: ~a, given: ~a line ~a:~a"
                  (second tok) tok-type (first tok) (third tok) (fourth tok)))))
  
-  
+  (define (get-id-inf tok)
+    (list (second tok) (cons (third tok) (fourth tok))))
+  (define (make-id tok)
+    (make-tree 'ident (get-id-inf tok)))
   (define (report-error type)
     (error 'PL/0-parser
            "syntax error in (~a), token: ~a in L~a" type (get-token) (third (get-token))))
@@ -55,8 +59,8 @@
       (let* ([id (match! 'ident)] [init (match! *init*)] [num (match! 'number)]
              [delim (get-token!)])
         (match (get-type delim)
-          ['\, (cons (list (second id) (second num)) (iter))]
-          ['\; (list (list (second id) (second num)))]
+          ['\, (cons (list (make-id id) (second num)) (iter))]
+          ['\; (list (list (make-id id) (second num)))]
           [_ (report-error 'const)])))
     (let* ([con (match! 'const)] [content (iter)])
       (make-tree 'const content)))
@@ -65,8 +69,8 @@
     (define (iter)
       (let* ([id (match! 'ident)] [delim (get-token!)])
         (match (get-type delim)
-          ['\, (cons (second id) (iter))]
-          ['\; (list (second id))]
+          ['\, (cons (make-id id) (iter))]
+          ['\; (list (make-id id))]
           [_ (report-error 'var)])))
     (let* ([con (match! 'var)] [content (iter)])
       (make-tree 'var content)))
@@ -102,7 +106,7 @@
   
   (define (statement-call)
     (let* ([call-tok (match! 'call)] [id (match! 'ident)])
-      (make-tree 'call (second id))))
+      (make-tree 'call (make-id id))))
   
   (define (statement-print)
     (let* ([print-tok (match! 'print)] [expr (exp)])
@@ -122,7 +126,7 @@
     (let* ([lhs (match! 'ident)]
            [ass-tok (match! 'assign)]
            [expr (exp)])
-      (make-tree 'assign (list (second lhs) expr))))
+      (make-tree 'assign (list (make-id lhs) expr))))
     
            
   (define (condition)
@@ -165,7 +169,7 @@
   (define (factor)
     (match (get-token-type)
       ['number (make-tree 'number (second (get-token!)))]
-      ['ident (make-tree 'ident (second (get-token!)))]
+      ['ident (make-id (match! 'ident))]
       ['\( (let ([expr null])
              (begin
                (match! '\() (set! expr (exp)) (match! '\))
@@ -177,13 +181,19 @@
       null
       (program)))
 
+
 (define (print-tree t [depth 0])
   (define (list-or l)
     (cond [(null? l) #f]
           [(= (length l) 1) (car l)]
           [(car l) #t]
           [else (list-or (cdr l))]))
-  (define (to-string x) (format "~a" x))
+  (define (to-string x)
+    (cond [(tree? x)
+           (format "[~a ~a]" (tree-type x) (to-string (tree-content x)))]
+          [(list? x)
+           (map to-string x)]
+          [else (format "~a" x)]))
   (define (flat-tree? t)
     (cond [(tree? (tree-content t)) #f]
           [(list? (tree-content t))
@@ -195,20 +205,22 @@
            (printf " ~a" (to-string (tree-content t)))]
           [(tree? (tree-content t))
            (begin
-             (printf "~%~a" (make-string (+ depth 1) #\space))
-             (print-tree (tree-content t) (+ depth 1)))]
+             (printf "~%~a" (make-string (add1 depth) #\space))
+             (print-tree (tree-content t) (add1 depth)))]
           [(list? (tree-content t))
            (for-each (lambda (x)
                        (cond [(tree? x)
                               (begin
-                                (printf "~%~a" (make-string (+ depth 1) #\space))
-                                (print-tree x (+ depth 1)))]
+                                (printf "~%~a" (make-string (add1 depth) #\space))
+                                (print-tree x (add1 depth)))]
                              [(null? x) '()]
                              [(list? x)
-                              (for-each (lambda (tr)
-                                          (begin 
-                                            (printf "~%~a" (make-string (+ depth 1) #\space))
-                                            (print-tree tr (+ depth 1)))) x)]
+                              (for-each (lambda (e)
+                                          (begin
+                                            (printf "~%~a" (make-string (add1 depth) #\space))
+                                            (if (tree? e)
+                                                (print-tree e (add1 depth))
+                                                (printf " ~a" (to-string e))))) x)]
                              [else (printf " ~a" (to-string x))]))
                      (tree-content t))])
     (printf "]")))
