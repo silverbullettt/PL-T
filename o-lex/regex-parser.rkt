@@ -67,16 +67,15 @@
   (let* ([nfa (make-any-nfa)]
          [init (nfa 'init)]
          [T (nfa 'T)])
-    (begin
-      (for-each (lambda (c)
-                  ((T 'insert!) init c '()))
-                char-list)
-      (make-nfa (nfa 'S)
-                (remove* char-list (nfa 'alphabet))
-                T
-                init
-                (nfa 'F)))))
-     
+    (for-each (lambda (c)
+                ((T 'insert!) init c '()))
+              char-list)
+    (make-nfa (nfa 'S)
+              (remove* char-list (nfa 'alphabet))
+              T
+              init
+              (nfa 'F))))
+
 (define (find-match-bracket str i lbrac)
   (let ([str-len (string-length str)]
         [rbrac (get-rbrac lbrac)])
@@ -145,24 +144,24 @@
                           [else
                            (if (string-empty? bs)
                                (error "Fuck!")
-                           (let ([bs-len (string-length bs)])
-                             (list (hash-ref *dup-map* c)
-                                   (substring bs 0 (- bs-len 1))
-                                   (substring bs (- bs-len 1) bs-len)
-                                   (substring regex (add1 i)))))])]
+                               (let ([bs-len (string-length bs)])
+                                 (list (hash-ref *dup-map* c)
+                                       (substring bs 0 (- bs-len 1))
+                                       (substring bs (- bs-len 1) bs-len)
+                                       (substring regex (add1 i)))))])]
               [(? wildcard?) (match s ; wildcard
-                                 ['in-plain (look-forward-dup)]
-                                 ['in-escape
-                                  (if (and (not (= i (- (string-length regex) 1)))
-                                           (dup? (string-ref regex (add1 i))))
-                                      (list (hash-ref *dup-map* (string-ref regex (add1 i)))
-                                            bs
-                                            (substring regex (- i 1) (add1 i))
-                                            (substring regex (+ i 2)))
-                                      (list (hash-ref *wildcard-map* c)
-                                            bs
-                                            ""
-                                            (substring regex (add1 i))))])]
+                               ['in-plain (look-forward-dup)]
+                               ['in-escape
+                                (if (and (not (= i (- (string-length regex) 1)))
+                                         (dup? (string-ref regex (add1 i))))
+                                    (list (hash-ref *dup-map* (string-ref regex (add1 i)))
+                                          bs
+                                          (substring regex (- i 1) (add1 i))
+                                          (substring regex (+ i 2)))
+                                    (list (hash-ref *wildcard-map* c)
+                                          bs
+                                          ""
+                                          (substring regex (add1 i))))])]
               [#\[ (match s ; character set
                      ['in-escape (look-forward-dup)]
                      ['in-plain
@@ -204,29 +203,29 @@
 
 (define (regex->nfa regex)
   (match (regex-parser regex)
-      [(list type before content after)
-       (match type
-         ['plain (make-plain-nfa content)]
-         ['or
-          (nfa-union (regex->nfa before)
-                     (regex->nfa after))]
-         [else
-          (let ([before-nfa (make-plain-nfa before)]
-                [after-nfa (regex->nfa after)])
-            (nfa-concate before-nfa
-                         (match type
-                           ['set (make-wildcard-nfa (string->list content))]
-                           ['neg-set (make-negchar-nfa (string->list content))]
-                           [else
-                            (let ([content-nfa (regex->nfa content)])
-                              (match type
-                                ['regexp content-nfa]
-                                ['zero-or-more (nfa-star-closure content-nfa)]
-                                ['one-or-more (nfa-positive-closure content-nfa)]
-                                ['zero-or-one (nfa-union content-nfa (make-ε-nfa))]
-                                ['char (make-char-nfa)]
-                                ['digit (make-digit-nfa)]))])
-                         after-nfa))])]))
+    [(list type before content after)
+     (match type
+       ['plain (make-plain-nfa content)]
+       ['or
+        (nfa-union (regex->nfa before)
+                   (regex->nfa after))]
+       [else
+        (let ([before-nfa (make-plain-nfa before)]
+              [after-nfa (regex->nfa after)])
+          (nfa-concate before-nfa
+                       (match type
+                         ['set (make-wildcard-nfa (string->list content))]
+                         ['neg-set (make-negchar-nfa (string->list content))]
+                         [else
+                          (let ([content-nfa (regex->nfa content)])
+                            (match type
+                              ['regexp content-nfa]
+                              ['zero-or-more (nfa-star-closure content-nfa)]
+                              ['one-or-more (nfa-positive-closure content-nfa)]
+                              ['zero-or-one (nfa-union content-nfa (make-ε-nfa))]
+                              ['char (make-char-nfa)]
+                              ['digit (make-digit-nfa)]))])
+                       after-nfa))])]))
 
 (define (make-regex-recognizer regex)
   (let ([nfa (regex->nfa regex)])
@@ -244,23 +243,22 @@
       (let ([result #f])
         (define (reset-result-and-iter start)
           (let ([mat result])
-            (begin (set! result #f)
-                   (cons (cons mat start)
-                         (match-iter init
-                                     (+ start (string-length mat))
-                                     (+ start (string-length mat)))))))
+            (set! result #f)
+            (cons (cons mat start)
+                  (match-iter init
+                              (+ start (string-length mat))
+                              (+ start (string-length mat))))))
         (define (match-iter stat index start)
           (if (= index (string-length str))
               (if result (list (cons result start)) '())
               (let ([next ((T 'lookup) stat (string-ref str index))])
-                (begin
-                  (if (accept? stat) (set! result (substring str start index)) '())
-                  (if (not next)
-                      (cond [result (reset-result-and-iter start)]
-                            [(eq? init index) (match-iter init (add1 index) start)]
-                            [else (match-iter init (add1 start) (add1 start))])
-                      (if (eq? init stat)
-                          (match-iter next (add1 index) index)
-                          (match-iter next (add1 index) start)))))))
+                (if (accept? stat) (set! result (substring str start index)) '())
+                (if (not next)
+                    (cond [result (reset-result-and-iter start)]
+                          [(eq? init index) (match-iter init (add1 index) start)]
+                          [else (match-iter init (add1 start) (add1 start))])
+                    (if (eq? init stat)
+                        (match-iter next (add1 index) index)
+                        (match-iter next (add1 index) start))))))
         (match-iter init 0 0)))
     match-str))

@@ -67,17 +67,18 @@
           (hash-map table
                     (lambda (k v)
                       (convert-iter k (cons key other-keys) (- dim 1) v)))))
-    (begin (hash-map (t 'table)
-                     (lambda (k v)
-                       (convert-iter k '() d v)))
-           l)))
+    (hash-map (t 'table)
+              (lambda (k v)
+                (convert-iter k '() d v)))
+    l))
 
 (define (list->table l . dim)
   (let* ([d (if (null? dim) 1 (car dim))]
          [t (make-table d)])
-    (begin
-      (for-each (lambda (kv-list) ((t 'insert-list!) kv-list)) l)
-      t)))
+    (for-each
+     (lambda (kv-list) ((t 'insert-list!) kv-list))
+     l)
+    t))
 
 (define (table-copy table)
   (list->table (table->list table) (table 'dim)))
@@ -93,13 +94,12 @@
     [else
      (let ([result (car tables)]
            [other-tables (cdr tables)])
-       (begin
-         (for-each
-          (lambda (t) (for-each (lambda (kv-list)
-                                  ((result 'insert-list!) kv-list))
-                                (table->list t)))
-          other-tables)
-         result))]))
+       (for-each
+        (lambda (t) (for-each (lambda (kv-list)
+                                ((result 'insert-list!) kv-list))
+                              (table->list t)))
+        other-tables)
+       result)]))
 
 (define (table-union . tables)
   ; union all tables to a new table

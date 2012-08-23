@@ -57,11 +57,10 @@
 
   (define (program)
     (let ([blk (block)])
-      (begin
-        (match! '\.)
+      (match! '\.)
         (if (null? tokens)
             (make-tree 'program blk)
-            (report-error 'program)))))
+            (report-error 'program))))
   
   (define (block)
     (define (iter) ; for procedure
@@ -69,10 +68,10 @@
           (cons (procedure) (iter))
           '()))
     (let ([const null] [var null] [proc null])
-      (begin (if (eq? (get-token-type) 'const) (set! const (const-init)) '())
-             (if (eq? (get-token-type) 'var) (set! var (var-decl)) '())
-             (if (eq? (get-token-type) 'proc) (set! proc (iter)) '())
-             (make-tree 'block (list const var proc (statement))))))
+      (if (eq? (get-token-type) 'const) (set! const (const-init)) '())
+      (if (eq? (get-token-type) 'var) (set! var (var-decl)) '())
+      (if (eq? (get-token-type) 'proc) (set! proc (iter)) '())
+      (make-tree 'block (list const var proc (statement)))))
   
   (define (const-init)
     (define (iter)
@@ -119,11 +118,11 @@
         ['end '()]
         [_ (report-error 'statement-begin '(\; end))]))
     (let ([stmts null])
-      (begin (match! 'begin)
-             (set! stmts (cons (statement) (iter)))
-             (match! 'end)
-             (make-tree 'begin stmts))))  
-  
+      (match! 'begin)
+      (set! stmts (cons (statement) (iter)))
+      (match! 'end)
+      (make-tree 'begin stmts)))
+
   (define (statement-call)
     (let* ([call-tok (match! 'call)] [id (match! 'ident)])
       (make-tree 'call (make-id id))))
@@ -191,9 +190,8 @@
       ['number (make-tree 'number (second (get-token!)))]
       ['ident (make-id (match! 'ident))]
       ['\( (let ([expr null])
-             (begin
-               (match! '\() (set! expr (exp)) (match! '\))
-               expt))]
+             (match! '\() (set! expr (exp)) (match! '\))
+             expt)]
       [#f '()]
       [_ (report-error 'factor '(number ident \())]))
   

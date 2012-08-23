@@ -14,11 +14,10 @@
          [new-alphabet (union-append (N1 'alphabet) (N2 'alphabet))]
          [t (N1 'T)]
          [new-F (append (N1 'F) (N2 'F))])
-    (begin
-      (table-union! t (N2 'T))
-      ; add ε-moves
-      ((t 'insert!) new-init *ε* (list (N1 'init) (N2 'init)))
-      (make-nfa new-S new-alphabet t new-init new-F))))
+    (table-union! t (N2 'T))
+    ; add ε-moves
+    ((t 'insert!) new-init *ε* (list (N1 'init) (N2 'init)))
+    (make-nfa new-S new-alphabet t new-init new-F)))
 
 (define (make-parser regex-list)
   (define (iter-union regex-list result token-map)
@@ -41,14 +40,13 @@
     (match (nfa->dfa nfa 'get-state-map)
       [(list dfa state-map)
        (let ([dfa-token-map (make-hash)])
-         (begin
-           (for-each
-            (lambda (kv)
-              (hash-set! dfa-token-map (car kv)
-                         (second (assf (lambda (s) (list-intersect? (cdr kv) s)) token-map))))
-            (map reverse-pair
-                 (filter (lambda (kv) (member (cdr kv) (dfa 'F))) (hash->list state-map))))
-           (list dfa dfa-token-map)))]))
+         (for-each
+          (lambda (kv)
+            (hash-set! dfa-token-map (car kv)
+                       (second (assf (lambda (s) (list-intersect? (cdr kv) s)) token-map))))
+          (map reverse-pair
+               (filter (lambda (kv) (member (cdr kv) (dfa 'F))) (hash->list state-map))))
+         (list dfa dfa-token-map))]))
   
   (match (apply convert->dfa (iter-union regex-list #f '()))
     [(list dfa token-map)
@@ -63,9 +61,9 @@
          (if (= index (string-length str))
              (if (not (eq? stat init))
                  (list (list (token-type stat)
-                         tok
-                         line-nr
-                         (- index offset (string-length tok))))
+                             tok
+                             line-nr
+                             (- index offset (string-length tok))))
                  '())
              (let* ([c (string-ref str index)]
                     [next (next-state stat c)])

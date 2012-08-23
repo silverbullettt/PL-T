@@ -11,11 +11,11 @@
   ; q0 -> an initial state
   ; F -> set of acceptable states
   (define (next-state q sym)
-      (if ((Δ 'lookup) q sym)
-          ((Δ 'lookup) q sym)
-          #f)) ; use #f to present unknown state
-    (define (accept? s)
-      (if (member s F) #t #f))
+    (if ((Δ 'lookup) q sym)
+        ((Δ 'lookup) q sym)
+        #f)) ; use #f to present unknown state
+  (define (accept? s)
+    (if (member s F) #t #f))
   
   (define (recognize str)
     (define (recognize-iter curr-state i)
@@ -70,7 +70,7 @@
       ; deal with ε-moves by span the set of states with which it can reach through 'ε'
       (arrange (apply append
                       (map (lambda (s) (cons s (ε-span (next-states s *ε*)))) ; ε-span should be recursive
-                               states))))
+                           states))))
     (define (list-next-states states sym)
       (ε-span
        (apply append (map (lambda (q) (next-states q sym)) states))))
@@ -82,22 +82,21 @@
           (if (queue-empty? q)
               dfa-t
               (let ([state-set (dequeue! q)])
-                (begin
-                  (for-each (lambda (sym)
-                              (if ((dfa-t 'lookup) state-set sym)
-                                  '()
-                                  (let ([nexts (list-next-states state-set sym)])
-                                    (if (null? nexts)
-                                        '()
-                                        (enqueue! q
-                                                  ((dfa-t 'insert!) state-set
-                                                                    sym
-                                                                    nexts))))))
-                            Σ)
-                  (convert-iter)))))
-        (begin (set! dfa-init (arrange (ε-span (list q0))))
-               (enqueue! q dfa-init)
-               (convert-iter))))
+                (for-each (lambda (sym)
+                            (if ((dfa-t 'lookup) state-set sym)
+                                '()
+                                (let ([nexts (list-next-states state-set sym)])
+                                  (if (null? nexts)
+                                      '()
+                                      (enqueue! q
+                                                ((dfa-t 'insert!) state-set
+                                                                  sym
+                                                                  nexts))))))
+                          Σ)
+                (convert-iter))))
+        (set! dfa-init (arrange (ε-span (list q0))))
+        (enqueue! q dfa-init)
+        (convert-iter)))
     
     (define (state-list->int dfa-t)
       (let ([new-t (make-table 2)]
@@ -109,12 +108,12 @@
           (if (hash-has-key? state-map set)
               (hash-ref state-map set)
               (hash-ref! state-map set (inc))))
-        (begin (for-each (lambda (kv)
-                           ((new-t 'insert!) (convert (first kv))
-                                             (second kv)
-                                             (convert (third kv))))
-                         (table->list dfa-t))
-               (cons new-t state-map))))
+        (for-each (lambda (kv)
+                    ((new-t 'insert!) (convert (first kv))
+                                      (second kv)
+                                      (convert (third kv))))
+                  (table->list dfa-t))
+        (cons new-t state-map)))
     
     (let* ([dfa-t (car (state-list->int (convert-table)))]
            [state-map (cdr (state-list->int (convert-table)))]
