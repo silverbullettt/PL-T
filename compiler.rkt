@@ -1,7 +1,9 @@
 #lang racket
 (require rnrs/io/ports-6)
 (require "PL0-scanner.rkt"
-         "PL0-parser.rkt")
+         "PL0-parser.rkt"
+         "PL0-analyzer.rkt"
+         "util/table.rkt")
 
 (define (read-string-from-file filename)
   ; source code must be wrotten by latin-1-codec
@@ -15,3 +17,4 @@
 
 (define t (compile "test.pl"))
 (print-tree t)
+(define ta (make-symbol-table t))
