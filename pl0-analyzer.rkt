@@ -19,7 +19,7 @@
          (lambda (x)
            (let ([id (first x)])
              (insert! (car (tree-content id)) 'type 'const)
-             (insert! (car (tree-content id)) 'value (second x))))
+             (insert! (car (tree-content id)) 'value (string->number (second x)))))
         (tree-content const-tree))))
     
     (define (add-var var-tree)

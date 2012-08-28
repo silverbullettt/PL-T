@@ -191,7 +191,7 @@
       ['ident (make-id (match! 'ident))]
       ['\( (let ([expr null])
              (match! '\() (set! expr (exp)) (match! '\))
-             expt)]
+             expr)]
       [#f '()]
       [_ (report-error 'factor '(number ident \())]))
   

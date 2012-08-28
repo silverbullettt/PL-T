@@ -18,4 +18,4 @@
 (define t (compile "test.pl"))
 (print-tree t)
 (newline)
-(PL/0-analyzer t)
+(define st (PL/0-analyzer t))
