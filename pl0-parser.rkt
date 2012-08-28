@@ -122,7 +122,7 @@
       (set! stmts (cons (statement) (iter)))
       (match! 'end)
       (make-tree 'begin stmts)))
-
+  
   (define (statement-call)
     (let* ([call-tok (match! 'call)] [id (match! 'ident)])
       (make-tree 'call (make-id id))))
@@ -146,8 +146,8 @@
            [ass-tok (match! 'assign)]
            [expr (exp)])
       (make-tree 'assign (list (make-id lhs) expr))))
-    
-           
+  
+  
   (define (condition)
     (if (eq? (get-token-type) 'odd)
         (make-tree (get-type (match! 'odd)) (exp))
@@ -217,28 +217,24 @@
           [(list? (tree-content t))
            (not (list-or (map tree? (tree-content t))))]
           [else #t]))
-  (begin
-    (printf "~a[~a" (make-string depth #\space) (tree-type t))
-    (cond [(flat-tree? t)
-           (printf " ~a" (to-string (tree-content t)))]
-          [(tree? (tree-content t))
-           (begin
-             (printf "~%~a" (make-string (add1 depth) #\space))
-             (print-tree (tree-content t) (add1 depth)))]
-          [(list? (tree-content t))
-           (for-each (lambda (x)
-                       (cond [(tree? x)
-                              (begin
-                                (printf "~%~a" (make-string (add1 depth) #\space))
-                                (print-tree x (add1 depth)))]
-                             [(null? x) '()]
-                             [(list? x)
-                              (for-each (lambda (e)
-                                          (begin
-                                            (printf "~%~a" (make-string (add1 depth) #\space))
-                                            (if (tree? e)
-                                                (print-tree e (add1 depth))
-                                                (printf " ~a" (to-string e))))) x)]
-                             [else (printf " ~a" (to-string x))]))
-                     (tree-content t))])
-    (printf "]")))
+  (printf "~a[~a" (make-string depth #\space) (tree-type t))
+  (cond [(flat-tree? t)
+         (printf " ~a" (to-string (tree-content t)))]
+        [(tree? (tree-content t))
+         (printf "~%~a" (make-string (add1 depth) #\space))
+         (print-tree (tree-content t) (add1 depth))]
+        [(list? (tree-content t))
+         (for-each (lambda (x)
+                     (cond [(tree? x)
+                            (printf "~%~a" (make-string (add1 depth) #\space))
+                            (print-tree x (add1 depth))]
+                           [(null? x) '()]
+                           [(list? x)
+                            (for-each (lambda (e)
+                                        (printf "~%~a" (make-string (add1 depth) #\space))
+                                        (if (tree? e)
+                                            (print-tree e (add1 depth))
+                                            (printf " ~a" (to-string e)))) x)]
+                           [else (printf " ~a" (to-string x))]))
+                   (tree-content t))])
+  (printf "]"))

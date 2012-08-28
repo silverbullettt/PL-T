@@ -17,4 +17,5 @@
 
 (define t (compile "test.pl"))
 (print-tree t)
-(define ta (make-symbol-table t))
+(newline)
+(PL/0-analyzer t)
