@@ -31,6 +31,7 @@
       (let ([result (string-append "@tmp"
                                    (number->string temp-counter))])
         (set! temp-counter (add1 temp-counter))
+        (add-code! (list 'decl result))
         result))
     
     (define (temp? t)

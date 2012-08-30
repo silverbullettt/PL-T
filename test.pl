@@ -51,10 +51,13 @@ BEGIN
   x := m;
   y := n;
   CALL multiply;
+  PRINT z;
   x := 25;
   y := 3;
   CALL divide;
+  PRINT q;
   x := 84;
   y := 36;
-  CALL gcd
+  CALL gcd;
+  PRINT z
 END.
