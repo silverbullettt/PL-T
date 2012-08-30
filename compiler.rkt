@@ -3,6 +3,7 @@
 (require "PL0-scanner.rkt"
          "PL0-parser.rkt"
          "PL0-analyzer.rkt"
+         "PL0-generator.rkt"
          "util/table.rkt")
 
 (define (read-string-from-file filename)
@@ -19,3 +20,4 @@
 (print-tree t)
 (newline)
 (define st (PL/0-analyzer t))
+(show-code (PL/0-generator t))
