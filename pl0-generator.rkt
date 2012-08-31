@@ -1,19 +1,12 @@
 #lang racket
 
 ; Code generator of PL/0
-(require "pl0-scanner.rkt"
-         "pl0-parser.rkt"
-         "pl0-analyzer.rkt"
-         "define.rkt"
-         "util/utility.rkt"
-         "util/table.rkt")
+(require "pl0-analyzer.rkt"
+         "define.rkt")
 (provide PL/0-generator show-code)
 
-(define (PL/0-generator syntax-tree)
-  (let ([symbol-table (PL/0-analyzer syntax-tree)]
-        [temp-counter 0]
-        [pc -1]
-        [code-list #()])
+(define (PL/0-generator syntax-tree symbol-table)
+  (let ([temp-counter 0] [pc -1] [code-list #()])
     
     (define lookup (symbol-table 'lookup))
     (define insert! (symbol-table 'insert!))
@@ -143,7 +136,7 @@
         (for-each (lambda (x)
                     (let ([id (car (tree-content (car x)))])
                       (add-code! (list 'decl id))
-                      (add-code! (list 'set (second x) id))))
+                      (add-code! (list 'set (lookup id 'value) id))))
                   (if (tree? (first (tree-content t)))
                       (tree-content (first (tree-content t)))
                       '()))
@@ -161,8 +154,8 @@
         (construct)
         (gen-statement (fourth (tree-content t)))
         entry))
-    (gen-block (tree-content syntax-tree))
-    code-list))
+    (let ([entry (gen-block (tree-content syntax-tree))])
+      (list code-list entry))))
 
 (define (show-code code-list)
   (let f ([index 0])

@@ -1,23 +1,10 @@
 CONST
-  m = 7,
-  n = 85;
+  m = 85,
+  n = 7;
  
 VAR
   x, y, z, q, r;
-PROCEDURE multiply;
-VAR a, b;
- 
-BEGIN
-  a := x;
-  b := y;
-  z := 0;
-  WHILE b > 0 DO BEGIN
-    IF ODD b THEN z := z + a;
-    a := 2 * a;
-    b := b / 2
-  END
-END;
- 
+
 PROCEDURE divide;
 VAR w;
 BEGIN
@@ -34,7 +21,7 @@ w := w / 2;
     END
   END
 END;
- 
+
 PROCEDURE gcd;
 VAR f, g;
 BEGIN
@@ -46,14 +33,10 @@ BEGIN
   END;
   z := f
 END;
- 
+
 BEGIN
   x := m;
   y := n;
-  CALL multiply;
-  PRINT z;
-  x := 25;
-  y := 3;
   CALL divide;
   PRINT q;
   x := 84;
