@@ -1,11 +1,11 @@
 #lang racket
 (require "util/lex-parser.rkt")
-(provide PL/0-scanner)
+(provide PL/T-scanner)
 
-(define PL/0-scanner
+(define PL/T-scanner
   (make-lex-parser 
    '(("~d+" number)
-     ("~c+" ident)
+     ("~c(~c|~d)*" ident)
      ("~(" \() (")" \))
      ("~+" +) ("-" -) ("~*" *) ("/" /)
      ("=" =) ("#" \#) ("<" <) ("<=" <=) (">" >) (">=" >=) ("ODD" odd)
@@ -14,4 +14,6 @@
      ("PROCEDURE" proc) ("CALL" call) ("PRINT" print)
      ("BEGIN" begin) ("END" end)
      ("IF" if) ("THEN" then)
-     ("WHILE" while) ("DO" do))))
+     ("WHILE" while) ("DO" do)
+     ("!![^\n]*\n" comment))
+   'comment))

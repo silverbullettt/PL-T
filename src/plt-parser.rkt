@@ -1,8 +1,8 @@
 #lang racket
-(require "pl0-scanner.rkt" "define.rkt")
-(provide PL/0-parser print-tree)
+(require "plt-scanner.rkt" "define.rkt")
+(provide PL/T-parser print-tree)
 
-; The syntax parser of PL/0
+; The syntax parser of PL/T
 
 ; program = block "." .
 ;
@@ -25,7 +25,7 @@
 ; factor = ident | number | "(" expression ")".
 
 
-(define (PL/0-parser tokens)
+(define (PL/T-parser tokens)
   
   (define (get-type tok) (first tok))
   (define (get-token-type) (if (null? tokens)
@@ -97,7 +97,8 @@
    (define (procedure)
     (let* ([proc-tok (match! 'proc)] [id-tok (match! 'ident)]
            [semi1 (match! '\;)] [blk (block)] [semi2 (match! '\;)])
-      (make-tree 'proc (list (second id-tok) blk))))
+      (make-tree 'proc (list (make-id id-tok) blk))))
+      ;(make-tree 'proc (list (second id-tok) blk))))
   
   (define (statement)
     (match (get-token-type)

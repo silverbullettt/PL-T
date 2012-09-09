@@ -1,7 +1,8 @@
 #lang racket
 
 (provide range accumulate union-append union-append*
-         string-find-first string-find-last string-empty?
+         string-find-first string-find-last
+         string-empty? string-split-list
          reverse-pair list-intersect? list-join member-tester
          list-and)
 
@@ -59,6 +60,13 @@
 
 (define (string-empty? str)
   (= (string-length str) 0))
+
+(define (string-split-list str delim)
+  (let ([i (string-find-first str delim)])
+    (if (= i -1)
+        (list str)
+        (cons (substring str 0 i)
+              (string-split-list (substring str (+ i 1)) delim)))))
 
 (define (reverse-pair p)
   (cons (cdr p) (car p)))

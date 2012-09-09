@@ -1,11 +1,10 @@
 #lang racket
 
 ; Code generator of PL/0
-(require "pl0-analyzer.rkt"
-         "define.rkt")
-(provide PL/0-generator show-code)
+(require "util/table.rkt" "define.rkt")
+(provide PL/T-generator print-code)
 
-(define (PL/0-generator syntax-tree symbol-table)
+(define (PL/T-generator syntax-tree symbol-table)
   (let ([temp-counter 0] [pc -1] [code-list #()])
     
     (define lookup (symbol-table 'lookup))
@@ -20,15 +19,15 @@
       (vector-set! code-list pos code))
     
     (define (new-temp)
-      ; all temple variables start with '@'
-      (let ([result (string-append "@tmp"
+      ; all temple variables start with '%'
+      (let ([result (string-append "%tmp"
                                    (number->string temp-counter))])
         (set! temp-counter (add1 temp-counter))
         (add-code! (list 'decl result))
         result))
     
     (define (temp? t)
-      (and (string? t) (char=? (string-ref t 0) #\@)))
+      (and (string? t) (char=? (string-ref t 0) #\%)))
     
     ; gen-exp and gen-cond return the name of temp variable
     (define (gen-exp t)
@@ -84,8 +83,15 @@
       pc)
     
     (define (gen-call t)
-      (add-code! (list 'call
-                       (lookup (first (tree-content (tree-content t))) 'entry))))
+      (let ([entry (lookup
+                    (first (tree-content (tree-content t)))
+                    'entry)])
+        ; if the procedure is un-generated at this time
+        ; reserve the proc-name
+        (when (not entry)
+          (set! entry
+                (car (tree-content (tree-content t)))))
+        (add-code! (list 'call entry))))
     
     (define (gen-print t)
       (add-code! (list 'print (gen-exp (tree-content t)))))
@@ -124,9 +130,8 @@
         pc))
     
     (define (gen-proc t)
-      (let ([entry (add1 pc)])
+      (let ([entry (gen-block (second (tree-content t)))])
         (insert! (first (tree-content t)) 'entry entry)
-        (gen-block (second (tree-content t)))
         (add-code! (list 'return))
         entry))
     
@@ -155,9 +160,19 @@
         (gen-statement (fourth (tree-content t)))
         entry))
     (let ([entry (gen-block (tree-content syntax-tree))])
+      ; 设置未知地址的 call
+      (let solve-call ([i 0])
+        (when (< i (vector-length code-list))
+          (let ([inst (vector-ref code-list i)])
+            (when (and (eq? (first inst) 'call)
+                       (string? (second inst)))
+              (vector-set! code-list
+                           i
+                           (list 'call (lookup (second inst) 'entry)))))
+          (solve-call (add1 i))))
       (list code-list entry))))
 
-(define (show-code code-list)
+(define (print-code code-list)
   (let f ([index 0])
     (when (< index (vector-length code-list))
       (printf "~a: ~a~%" index (vector-ref code-list index))
