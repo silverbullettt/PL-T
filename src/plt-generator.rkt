@@ -5,7 +5,7 @@
 (provide PL/T-generator print-code)
 
 (define (PL/T-generator syntax-tree symbol-table)
-  (let ([temp-counter 0] [pc -1] [code-list #()])
+  (let ([temp-counter 0] [pc -1] [code-list #()] [call-list '()])
     
     (define lookup (symbol-table 'lookup))
     (define insert! (symbol-table 'insert!))
@@ -83,15 +83,11 @@
       pc)
     
     (define (gen-call t)
-      (let ([entry (lookup
-                    (first (tree-content (tree-content t)))
-                    'entry)])
-        ; if the procedure is un-generated at this time
-        ; reserve the proc-name
-        (when (not entry)
-          (set! entry
-                (car (tree-content (tree-content t)))))
-        (add-code! (list 'call entry))))
+      (set! call-list
+            (cons (add-code!
+                   (list 'call
+                         (car (tree-content (tree-content t)))))
+                  call-list)))
     
     (define (gen-print t)
       (add-code! (list 'print (gen-exp (tree-content t)))))
@@ -161,15 +157,13 @@
         entry))
     (let ([entry (gen-block (tree-content syntax-tree))])
       ; 设置未知地址的 call
-      (let solve-call ([i 0])
-        (when (< i (vector-length code-list))
-          (let ([inst (vector-ref code-list i)])
-            (when (and (eq? (first inst) 'call)
-                       (string? (second inst)))
-              (vector-set! code-list
-                           i
-                           (list 'call (lookup (second inst) 'entry)))))
-          (solve-call (add1 i))))
+      (for-each
+       (lambda (i)
+         (let ([inst (vector-ref code-list i)])
+           (vector-set! code-list
+                        i
+                        (list 'call (lookup (second inst) 'entry)))))
+       call-list)
       (list code-list entry))))
 
 (define (print-code code-list)
