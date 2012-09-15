@@ -1,4 +1,4 @@
-# **PL/0 virtual machine instructions set**
+# **PL/T virtual machine instructions set**
 
 <pre><code>
 ; instruction set:

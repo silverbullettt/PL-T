@@ -6,23 +6,27 @@
 
 ; program = block "." .
 ;
-; block = [ "const" ident "=" number {"," ident "=" number} ";"]
-;         [ "var" ident {"," ident} ";"]
+; block = [ "const" ident "=" number { "," ident "=" number} ";" ]
+;         [ "var" ident { "," ident } ";" ]
 ;         { "procedure" ident ";" block ";" } statement .
 ;
 ; statement = [ ident ":=" expression | "call" ident |
 ;             "begin" statement {";" statement } "end" |
 ;             "if" condition "then" statement |
-;             "while" condition "do" statement ].
+;             "while" condition "do" statement |
+;             "print" expression | "read" ident ].
 ;
-; condition = "odd" expression |
-;             expression ("="|"#"|"<"|"<="|">"|">=") expression .
+; condition = ident | "true | "false " |
+;             "(" arithmetic ["="|"#"|"<"|"<="|">"|">="] arithmetic ")" |
+;             "(" "not" condition ")" | "(" ["and"|"or"] condition { condition } ")".
 ;
-; expression = [ "+"|"-"] term { ("+"|"-") term}.
+; arithmetic = ident | number |
+;              "(" ["+"|"-"|"*"|"/"] arithmetic { arithmetic } ")".
 ;
-; term = factor {("*"|"/") factor}.
-;
-; factor = ident | number | "(" expression ")".
+; expression = ident | number | "true" | "false" |
+;             "(" "not" condition ")" |
+;             "(" ["and"|"or"] condition { condition } ")"
+;             "(" ["+"|"-"|"*"|"/"] arithmetic { arithmetic } ")".
 
 
 (define (PL/T-parser tokens)

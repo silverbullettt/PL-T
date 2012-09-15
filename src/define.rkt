@@ -4,6 +4,8 @@
 
 (define-struct tree (type content) #:mutable)
 (define-struct env (name st parent) #:mutable)
+(define-struct type-info (type value) #:mutable)
+(define-struct entity (name type value) #:mutable)
 
 (define *plus* '+)
 (define *minus* '-)

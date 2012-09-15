@@ -14,6 +14,11 @@
 ; (odd e var)         -> if e is odd, set var to #t, or #f
 ; (print e)           -> print the value of e to screen
 
+; 一些操作直接对应类型信息
+; arth-op     => integer
+; cond-op/odd => bool
+; set         => type of var
+
 (define (PL/T-machine code-list entry)
   (define (exec pc stack env)
     ; this environment is a little different with
