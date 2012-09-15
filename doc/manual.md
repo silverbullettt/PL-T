@@ -11,3 +11,13 @@ PL/T 的类型系统与 Python、Scheme 相似，为动态类型系统，即变�
 
 ## **指令集**
 指令由操作码，操作数，以及源文件地址构成- -
+
+## **表达式**
+PL/T 全部采用前缀表达式，这样递归下降解析语法的时候就方便得多得多。
+
+## **语法**
+<pre><code>
+condition = ident | "true | "false " |
+           "(" ["="|"#"|"<"|"<="|">"|">="] arithmetic arithmetic ")" |
+           "(" "not" condition ")" | "(" ["and"|"or"] condition { condition } ")".
+</code></pre>

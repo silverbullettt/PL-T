@@ -1,14 +1,14 @@
 #lang racket
-(require "plt-scanner.rkt" "define.rkt")
+(require "plt-scanner.rkt" "define.rkt" "util/utility.rkt")
 (provide PL/T-parser print-tree)
 
 ; The syntax parser of PL/T
 
-; program = block "." .
+; program = block ".".
 ;
 ; block = [ "const" ident "=" number { "," ident "=" number} ";" ]
 ;         [ "var" ident { "," ident } ";" ]
-;         { "procedure" ident ";" block ";" } statement .
+;         { "procedure" ident ";" block ";" } statement.
 ;
 ; statement = [ ident ":=" expression | "call" ident |
 ;             "begin" statement {";" statement } "end" |
@@ -17,7 +17,7 @@
 ;             "print" expression | "read" ident ].
 ;
 ; condition = ident | "true | "false " |
-;             "(" arithmetic ["="|"#"|"<"|"<="|">"|">="] arithmetic ")" |
+;             "(" ["="|"#"|"<"|"<="|">"|">="] arithmetic arithmetic ")" |
 ;             "(" "not" condition ")" | "(" ["and"|"or"] condition { condition } ")".
 ;
 ; arithmetic = ident | number |
@@ -26,6 +26,7 @@
 ; expression = ident | number | "true" | "false" |
 ;             "(" "not" condition ")" |
 ;             "(" ["and"|"or"] condition { condition } ")"
+;             "(" ["="|"#"|"<"|"<="|">"|">="] arithmetic arithmetic ")
 ;             "(" ["+"|"-"|"*"|"/"] arithmetic { arithmetic } ")".
 
 
@@ -35,6 +36,10 @@
   (define (get-token-type) (if (null? tokens)
                                #f
                                (get-type (first tokens))))
+  ; get type of second token
+  (define (get-token2-type) (if (null? (cdr tokens))
+                                #f
+                                (get-type (second tokens))))
   (define (get-token)
     (if (null? tokens) #f  (first tokens)))
   (define (get-token!)
@@ -108,6 +113,7 @@
     (match (get-token-type)
       ['begin (statement-begin)]
       ['call (statement-call)]
+      ['read (statement-read)]
       ['print (statement-print)]
       ['if (statement-if)]
       ['while (statement-while)]
@@ -132,6 +138,10 @@
     (let* ([call-tok (match! 'call)] [id (match! 'ident)])
       (make-tree 'call (make-id id))))
   
+  (define (statement-read)
+    (let* ([read-tok (match! 'print)] [id (match! 'ident)])
+      (make-tree 'read (make-id id))))
+  
   (define (statement-print)
     (let* ([print-tok (match! 'print)] [expr (exp)])
       (make-tree 'print expr)))
@@ -152,53 +162,70 @@
            [expr (exp)])
       (make-tree 'assign (list (make-id lhs) expr))))
   
+  (define logic-op? (member-tester *logic-op*))
+  (define cond-op? (member-tester *cond-op*))
   
   (define (condition)
-    (if (eq? (get-token-type) 'odd)
-        (make-tree (get-type (match! 'odd)) (exp))
-        (let* ([l-exp (exp)] [cond-op (get-type (get-token!))] [r-exp (exp)])
-          (make-tree cond-op (list l-exp r-exp)))))
+     (define (iter)
+       (if (eq? (get-token-type) '\))
+           (begin (match! '\)) '())
+           (cons (exp) (iter))))
+    (match (get-token-type)
+      ['ident (make-id (match! 'ident))]
+      ['true (get-token!) (make-tree 'true #t)]
+      ['false (get-token!) (make-tree 'false #f)]
+      ['\(
+       (match! '\()       
+       (match (get-token-type)
+         ['not
+          (let ([result #f])
+            (match! 'not)
+            (set! result (make-tree 'not (exp)))
+            (match! '\))
+            result)]
+         [(? logic-op?)
+          (let ([op (get-type (get-token!))])
+            (make-tree op (iter)))]
+          [(? cond-op?)
+           (let* ([op (get-type (get-token!))]
+                  [l-arith (arithmetic)]
+                  [r-arith (arithmetic)])
+             (match! '\))
+             (make-tree op (list l-arith r-arith)))]
+          [_ (report-error 'condition (append *cond-op* *logic-op* '(not)))])]
+       [_ (report-error 'condition '(true false ident \())]))
   
-  (define (term-op)
-    (if (or (eq? (get-token-type) *plus*)
-            (eq? (get-token-type) *minus*))
-        (get-type (get-token!))
-        '()))
+  (define (arithmetic)
+    (define (iter)
+      (if (eq? (get-token-type) '\))
+          (begin (match! '\)) '())
+          (cons (arithmetic) (iter))))
+    (match (get-token-type)
+      ['ident (make-id (match! 'ident))]
+      ['number (make-tree 'number (second (get-token!)))]
+      ['\(
+       (match! '\()
+       (if (member (get-token-type) *arith-op*)
+           (let ([op (get-type (get-token!))])
+             (make-tree op (iter)))
+           (report-error 'arithmetic *arith-op*))]
+      [_ (report-error 'arithmetic '(number ident \())]))
+  
+  (define arith-op? (member-tester (append *arith-op* '(number))))
+  (define cond? (member-tester
+                 (append *logic-op* *cond-op* '(not true false))))
   
   (define (exp)
-    (define (iter)
-      (if (get-token)
-          (let ([op (term-op)])
-            (if (null? op)
-                '()
-                (cons op (cons (term) (iter)))))
-          '()))
-    (let* ([first-op (term-op)] [l-term (term)])
-      (make-tree 'exp
-                 (if (null? first-op)
-                     (cons l-term (iter))
-                     (cons first-op (cons l-term (iter)))))))
-  
-  (define (term)
-    (define (iter)
-      (if (get-token)
-          (if (or (eq? (get-token-type) *times*)
-                  (eq? (get-token-type) *over*))
-              (cons (get-type (get-token!))
-                    (cons (factor) (iter)))
-              '())
-          '()))
-    (make-tree 'term (cons (factor) (iter))))
-  
-  (define (factor)
     (match (get-token-type)
-      ['number (make-tree 'number (second (get-token!)))]
       ['ident (make-id (match! 'ident))]
-      ['\( (let ([expr null])
-             (match! '\() (set! expr (exp)) (match! '\))
-             expr)]
-      [#f '()]
-      [_ (report-error 'factor '(number ident \())]))
+      [(? arith-op?) (arithmetic)]
+      [(? cond?) (condition)]
+      ['\(
+       (match (get-token2-type)
+         [(? arith-op?) (arithmetic)]
+         [(? cond?) (condition)]
+         [_ (report-error 'exp '(arith-op condition-op))])]
+      [_ (report-error 'exp '(number true false ident \())]))
   
   (if (null? tokens)
       null

@@ -17,5 +17,5 @@
      ("WHILE" while) ("DO" do)
      ("TRUE" true) ("FALSE" false)
      ("AND" and) ("OR" or) ("NOT" not)
-     ("!![^\n]*\n" comment))
+     ("![^!]*!" comment))
    'comment))

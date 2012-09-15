@@ -12,5 +12,7 @@
 (define *times* '*)
 (define *over* '/)
 
+(define *arith-op* '(+ - * /))
+(define *logic-op* '(and or))
 (define *cond-op* '(= \# < <= > >=))
 (define *init* '=)
