@@ -28,20 +28,30 @@
 
 (define t (PL/T-parser
              (PL/T-scanner
-              (read-string-from-file "../sample/test_exp.pl"))))
+              (read-string-from-file "../sample/test.pl"))))
 ;(print-tree t)
 (define st (PL/T-analyzer t))
 (define (type->list t)
   (list (type-info-type t) (type-info-value t)))
-(map
- (lambda (x)
-   (map
-    (lambda (y)
-      (if (type-info? y)
-          (type->list y)
-          y))
-    x))
- (table->list st))
-;(define code (PL/T-generator t st))
+(define (print-st st)
+  (map
+   (lambda (x)
+     (map
+      (lambda (y)
+        (if (type-info? y)
+            (type->list y)
+            y))
+      x))
+   (table->list st)))
+(print-st st)
+(define code (PL/T-generator t st))
+(print-code (car code))
+(PL/T-machine (first code) (second code))
+
+(define (analyzer [filename "../sample/test.pl"])
+  (PL/T-analyzer
+   (PL/T-parser
+    (PL/T-scanner
+     (read-string-from-file filename)))))
 
 ;(exec "../sample/test.pl")

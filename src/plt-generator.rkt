@@ -14,57 +14,77 @@
       (set! code-list (vector-append code-list (vector code)))
       (set! pc (add1 pc))
       pc)
-    
     (define (set-code! pos code)
       (vector-set! code-list pos code))
     
+    (define (get-pos id-tree)
+      (second (tree-content id-tree)))
+    
     (define (new-temp)
       ; all temple variables start with '%'
-      (let ([result (string-append "%tmp"
-                                   (number->string temp-counter))])
+      (let ([result (make-tree 'temp
+                               (list
+                                (string-append "%tmp"
+                                               (number->string temp-counter))))])
         (set! temp-counter (add1 temp-counter))
-        (add-code! (list 'decl result))
+        (add-code! (list 'decl (id-name result)))
         result))
     
     (define (temp? t)
-      (and (string? t) (char=? (string-ref t 0) #\%)))
+      (and (tree? t) (eq? (tree-type t) 'temp)))
     
     ; gen-exp and gen-cond return the name of temp variable
+    (define (iter ls op)
+      (if (= (length ls) 1)
+          (gen-exp (car ls))
+          (let* ([left (gen-exp (first ls))]
+                 [right (gen-exp (second ls))]
+                 [temp (new-temp)])
+            (add-code! (list op left right temp))
+            (iter (cons temp (cddr ls)) op))))
+    
     (define (gen-exp t)
-      (define (iter ls)
-        (if (= (length ls) 1)
-            (gen-term (car ls))
-            (let* ([left (gen-term (first ls))]
-                   [op (second ls)]
-                   [right (gen-term (third ls))]
-                   [temp (new-temp)])
-              (add-code! (list op left right temp))
-              (iter (cons temp (cdddr ls))))))
-      (iter (tree-content t)))
-    
-    (define (gen-term t)
-      (define (iter ls)
-        (if (= (length ls) 1)
-            (gen-factor (car ls))
-            (let* ([left (gen-factor (first ls))]
-                   [op (second ls)]
-                   [right (gen-factor (third ls))]
-                   [temp (new-temp)])
-              (add-code! (list op left right temp))
-              (iter (cons temp (cdddr ls))))))
-      (if (temp? t)
-          t
-          (iter (tree-content t))))
-    
-    (define (gen-factor t)
-      (if (temp? t)
-          t
+      (define (primitive x) (match x ['- 0] ['/ 1]))      
+      (if (temp? t) t
           (match (tree-type t)
-            ['ident (first (tree-content t))]
+            [(or 'true 'false) (tree-content t)]
             ['number (string->number (tree-content t))]
-            ['exp (gen-exp t)]
-            [_ (error "不可能！")])))
+            ['ident t] ; position
+            [(or '- '/)
+             (if (= (length (tree-content t)) 1)
+                 (let ([temp (new-temp)]
+                       [op (tree-type t)])
+                   (add-code!
+                    (list op (primitive op)
+                          (gen-exp (car (tree-content t)))
+                          temp))
+                   temp)
+                 (iter (tree-content t) (tree-type t)))]
+            [(or 'not (? cond-op?) (? logic-op?))
+             (gen-cond t)]
+            [(? arith-op?)
+             (iter (tree-content t) (tree-type t))]
+            [type (error 'exp "Unknown type '~a'~%" type)])))
     
+    (define (gen-cond t)
+      (match (tree-type t)
+        [(or 'true 'false) (tree-content t)]
+        ['ident t]
+        ['not
+         (let ([temp (new-temp)])
+           (add-code!
+            (list 'not (gen-exp (tree-content t)) '() temp))
+           temp)]
+        [(? cond-op?)
+             (let* ([left (gen-exp (first (tree-content t)))]
+                    [right (gen-exp (second (tree-content t)))]
+                    [temp (new-temp)])
+               (add-code!
+                (list (tree-type t) left right temp))
+               temp)]
+        [(? logic-op?)
+         (iter (tree-content t) (tree-type t))]))
+         
     ; each gen-xxx statement return the end index of itself
     (define (gen-statement t)
       (when (tree? t)
@@ -72,10 +92,11 @@
           ['begin (gen-begin t)]
           ['assign (gen-assign t)]        
           ['call (gen-call t)]
+          ['read (gen-read t)]
           ['print (gen-print t)]
           ['if (gen-if t)]
           ['while (gen-while t)]
-          [_ (error "还没实现呢")])))
+          [x (error "'~a' 还没实现呢" x)])))
     
     (define (gen-begin t)
       (for-each gen-statement
@@ -89,25 +110,17 @@
                          (car (tree-content (tree-content t)))))
                   call-list)))
     
+    (define (gen-read t)
+      (add-code! (list 'read (tree-content t))))
+    
     (define (gen-print t)
-      (add-code! (list 'print (gen-exp (tree-content t)))))
+      (add-code! (list 'print (gen-exp (tree-content t))))
+      (add-code! (list 'print "\n")))
     
     (define (gen-assign t)
-      (let ([id (car (tree-content (car (tree-content t))))]
+      (let ([id (car (tree-content t))]
             [e (gen-exp (second (tree-content t)))])
         (add-code! (list 'set e id))))
-    
-    (define (gen-cond t)
-      (if (eq? (tree-type t) 'odd)
-          (let ([e (gen-exp (tree-content t))]
-                [tmp (new-temp)])
-            (add-code! (list 'odd e tmp))
-            tmp)
-          (let ([l-exp (gen-exp (first (tree-content t)))]
-                [r-exp (gen-exp (second (tree-content t)))]
-                [tmp (new-temp)])
-            (add-code! (list (tree-type t) l-exp r-exp tmp))
-            tmp)))
     
     (define (gen-if t)
       (let ([cond-res (gen-cond (first (tree-content t)))]
@@ -137,7 +150,7 @@
         (for-each (lambda (x)
                     (let ([id (car (tree-content (car x)))])
                       (add-code! (list 'decl id))
-                      (add-code! (list 'set (lookup id 'value) id))))
+                      (add-code! (list 'set (lookup id 'value) (make-tree 'const (list id))))))
                   (if (tree? (first (tree-content t)))
                       (tree-content (first (tree-content t)))
                       '()))
@@ -167,7 +180,15 @@
       (list code-list entry))))
 
 (define (print-code code-list)
+  (define (tree->string t)
+    (if (tree? t)
+        (format "~a" (if (eq? (tree-type t) 'temp)
+                         (tree-content t)
+                         (car (tree-content t))))
+        t))
   (let f ([index 0])
     (when (< index (vector-length code-list))
-      (printf "~a: ~a~%" index (vector-ref code-list index))
+      (printf "~a: ~a~%" index (map
+                                tree->string
+                                (vector-ref code-list index)))
       (f (add1 index)))))

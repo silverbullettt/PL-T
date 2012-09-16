@@ -177,11 +177,11 @@
         (let* ([id-info (tree-content (tree-content t))]
                [real-id (get-real-id (first id-info) env)])
           (cond [(not real-id)
-                 (printf "CALL ERROR: Unknwon id '~a', L~a:~a.~%"
+                 (printf "READ ERROR: Unknwon id '~a', L~a:~a.~%"
                          (first id-info) (car (second id-info)) (cdr (second id-info)))
                  #f]
                 [(not (eq? 'var (type-info-type (st-lookup real-id 'type))))
-                 (printf "CALL ERROR: '~a' is not a variable, L~a:~a.~%"
+                 (printf "READ ERROR: '~a' is not a variable, L~a:~a.~%"
                          (first id-info)
                          (car (second id-info)) (cdr (second id-info)))
                  #f]
@@ -221,14 +221,16 @@
                              (car (second id-info)) (cdr (second id-info)))
                      #f]))]
           ['number #t]
-          [_ (list-and
-              (map (lambda (x)
-                     (if (and 
-                          (or (eq? (get-type x) 'number)
-                              (eq? (get-type x) 'unknown))
-                          (check-exp x))
-                         #t #f))
-                   (tree-content t)))]))
+          [(? arith-op?) 
+           (list-and
+            (map (lambda (x)
+                   (if (and 
+                        (or (eq? (get-type x) 'number)
+                            (eq? (get-type x) 'unknown))
+                        (check-exp x))
+                       #t #f))
+                 (tree-content t)))]
+          [x (printf "ARITHMETIC ERROR: Unexcepted type ~a~%" x) #f]))
       
       (define (check-condition t)
         (match (tree-type t)
@@ -279,11 +281,11 @@
         [_ (error "不可能!")]))
     
     ;==========================================================================
-    (check-block (tree-content syntax-tree) env)
-    symbol-table))
-    ;(if (check-block (tree-content syntax-tree) env)
-     ;   symbol-table
-      ;  #f)))
+    ;(check-block (tree-content syntax-tree) env)
+    ;symbol-table))
+    (if (check-block (tree-content syntax-tree) env)
+        symbol-table
+        #f)))
 
 (define (print-env env)
   (when env

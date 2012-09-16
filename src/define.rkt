@@ -3,6 +3,10 @@
 (provide (all-defined-out))
 
 (define-struct tree (type content) #:mutable)
+;(define-struct tree (type content pos) #:mutable)
+(define (id-name id) (car (tree-content id)))
+(define (id-pos id) (second (tree-content id)))
+
 (define-struct env (name st parent) #:mutable)
 (define-struct type-info (type value) #:mutable)
 ; type : var, const, (array, struct)
