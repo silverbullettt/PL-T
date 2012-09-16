@@ -51,7 +51,7 @@
                                 (cons
                                  dec-id
                                  (rest (tree-content (car x)))))
-             (st-insert! dec-id 'type 'const)
+             (st-insert! dec-id 'type (make-type-info 'const 'number))
              (st-insert! dec-id 'value (string->number (second x)))))
         (tree-content const-tree))))
     
@@ -64,10 +64,11 @@
              (check-dup-id x env)
              (env-insert! id env)
              (set-tree-content! x (cons dec-id (rest (tree-content x))))
-             (st-insert! dec-id 'type 'var)))
+             (st-insert! dec-id 'type (make-type-info 'var 'unknown))))
          (tree-content t))))
     
     (define (add-proc tlist env)
+      ; 只是添加 proc 到环境中
       (when (not (null? tlist))
         (for-each
          (lambda (x)
@@ -76,7 +77,7 @@
                   [dec-id (decorate-name proc-name env)])
              (check-dup-id (car (tree-content x)) env)
              (env-insert! proc-name env)
-             (st-insert! dec-id 'type 'proc)))
+             (st-insert! dec-id 'type (make-type-info 'const 'proc))))
          tlist)))
     
     (define (check-proc t env)
@@ -86,6 +87,7 @@
         (set-tree-content! t
                            (cons (decorate-name proc-name env)
                                  (rest (tree-content t))))
+        ;(st-insert! (decorate-name proc-name env) 'env env)))
         (check-block (second (tree-content t)) new-env)))
     
     
@@ -100,6 +102,28 @@
     ; =========================================================================
     
     (define (check-statement t env)
+      
+      (define (get-type exp)
+        ; get the type of expression tree
+        ; must use original id to get type
+        (if (tree? exp)
+            (match (tree-type exp)
+              ['true 'bool]
+              ['false 'bool]
+              ['number 'number]
+              ['ident
+               (let* ([id (car (tree-content exp))]
+                      [real-id (if (string-contain? id #\@)
+                                   id
+                                   (get-real-id id env))])
+                 (if (not real-id)
+                     #f
+                     (type-info-value (st-lookup real-id 'type))))]
+              [(? arith-op?) 'number]
+              [(? cond?) 'bool]
+              [_ (error 'get-type "unknown type -- ~a" (tree-type exp))])
+            #f))
+      
       (define (check-begin t)
         (list-and (map (lambda (x)
                          (check-statement x env))
@@ -109,23 +133,29 @@
         (let* ([id-info (tree-content (first (tree-content t)))]
                [exp-tree (second (tree-content t))]
                [real-id (get-real-id (first id-info) env)])
-          (cond [(not real-id)
+          (cond [(not real-id) ; is identity already declared?
                  (printf "ASSIGN ERROR: Unknwon id '~a', L~a:~a.~%"
                          (first id-info) (car (second id-info)) (cdr (second id-info)))
-                 #f]
-                [(not (eq? 'var (st-lookup real-id 'type)))
+                 #f] ; is identity a variable?
+                [(not (eq? 'var (type-info-type (st-lookup real-id 'type))))
                  (printf "ASSIGN ERROR: '~a' is ~a and cannot be assigned, L~a:~a.~%"
                          (first id-info)
-                         (st-lookup real-id 'type)
+                         (type-info-type (st-lookup real-id 'type))
                          (car (second id-info)) (cdr (second id-info)))
-                 #f]
+                 #f] ; is the expression valid?
                 [(not (check-exp exp-tree))
                  (printf "ASSIGN ERROR: not an invalid expression, L~a:~a.~%"
                          (car (second id-info)) (cdr (second id-info)))
                  #f]
-                [else 
-                 (rename! (first (tree-content t)) real-id)
-                 #t])))
+                [else
+                 (let ([exp-type (get-type exp-tree)]
+                       [id-type (type-info-value (st-lookup real-id 'type))])
+                   (if (or (eq? id-type 'unknown) (eq? exp-type id-type))
+                       (begin (rename! (first (tree-content t)) real-id) #t)
+                       (begin (printf "ASSIGN ERROR: Cannot assign ~a to ~a '~a', L~a:~a.~%"
+                                      exp-type id-type (first id-info)
+                                      (car (second id-info)) (cdr (second id-info)))
+                              #f)))])))
       
       (define (check-call t)
         (let* ([id-info (tree-content (tree-content t))]
@@ -134,8 +164,24 @@
                  (printf "CALL ERROR: Unknwon id '~a', L~a:~a.~%"
                          (first id-info) (car (second id-info)) (cdr (second id-info)))
                  #f]
-                [(not (eq? 'proc (st-lookup real-id 'type)))
+                [(not (eq? 'proc (type-info-value (st-lookup real-id 'type))))
                  (printf "CALL ERROR: '~a' is not a procedure, L~a:~a.~%"
+                         (first id-info)
+                         (car (second id-info)) (cdr (second id-info)))
+                 #f]
+                [else
+                 (rename! (tree-content t) real-id)
+                 #t])))
+      
+      (define (check-read t)
+        (let* ([id-info (tree-content (tree-content t))]
+               [real-id (get-real-id (first id-info) env)])
+          (cond [(not real-id)
+                 (printf "CALL ERROR: Unknwon id '~a', L~a:~a.~%"
+                         (first id-info) (car (second id-info)) (cdr (second id-info)))
+                 #f]
+                [(not (eq? 'var (type-info-type (st-lookup real-id 'type))))
+                 (printf "CALL ERROR: '~a' is not a variable, L~a:~a.~%"
                          (first id-info)
                          (car (second id-info)) (cdr (second id-info)))
                  #f]
@@ -156,62 +202,88 @@
          (check-condition (first (tree-content t)))
          (check-statement (second (tree-content t)) env)))
       
+      ; ================== check expression ===============
       
-      (define (check-condition t)
-        (if (eq? (tree-type t) 'odd)
-            (check-exp (tree-content t))
-            (and
-             (check-exp (first (tree-content t)))
-             (check-exp (second (tree-content t))))))
-      
-      (define (check-exp t)
-        (list-and
-         (map (lambda (x)
-                (if (tree? x) (check-term x) #t))
-              (tree-content t))))
-      
-      (define (check-term t)
-        (list-and
-         (map (lambda (x)
-                (if (tree? x) (check-factor x) #t))
-              (tree-content t))))
-      
-      (define (check-factor t)
+      (define (check-arith t)
         (match (tree-type t)
           ['ident
            (let* ([id-info (tree-content t)]
                   [real-id (get-real-id (first id-info) env)])
-             (match (st-lookup real-id 'type)
-               ['var (rename! t real-id) #t]
-               ['const (rename! t real-id) #t]
-               ['proc
-                (printf "EXPRESSION ERROR: procedure '~a' cannot be reference in expression, L~a:~a.~%"
-                        (first id-info)
-                        (car (second id-info)) (cdr (second id-info)))
-                #f]
-               [#f
-                (printf "EXPRESSION ERROR: Unknwon id '~a', L~a:~a.~%"
-                        (first id-info) (car (second id-info)) (cdr (second id-info)))
-                #f]
-               [_ (error "不可能!")]))]
+             (match (get-type t)
+               ['number (rename! t real-id) #t]
+               ['unknown (rename! t real-id) #t]
+               [#f (printf "ARITH ERROR: Unknown id '~a', L~a:~a.~%"
+                           (first id-info)
+                           (car (second id-info)) (cdr (second id-info)))
+                   #f]
+               [type (printf "ARITHMETIC ERROR: '~a' is ~a, except ~a L~a:~a.~%"
+                             (first id-info) type 'bool
+                             (car (second id-info)) (cdr (second id-info)))
+                     #f]))]
           ['number #t]
-          ['exp (check-exp t)]
-          [_ (error "不可能!")]))
+          [_ (list-and
+              (map (lambda (x)
+                     (if (and 
+                          (or (eq? (get-type x) 'number)
+                              (eq? (get-type x) 'unknown))
+                          (check-exp x))
+                         #t #f))
+                   (tree-content t)))]))
       
+      (define (check-condition t)
+        (match (tree-type t)
+          ['true #t]
+          ['false #t]
+          ['ident
+           (let* ([id-info (tree-content t)]
+                  [real-id (get-real-id (first id-info) env)])
+             (match (get-type t)
+               ['bool (rename! t real-id) #t]
+               ['unknown (rename! t real-id) #t]
+               [#f (printf "ARITH ERROR: Unknown id '~a', L~a:~a.~%"
+                           (first id-info)
+                           (car (second id-info)) (cdr (second id-info)))
+                   #f]
+               [type (printf "CONDITION ERROR: '~a' is ~a, except ~a L~a:~a.~%"
+                             (first id-info) type 'bool
+                             (car (second id-info)) (cdr (second id-info)))
+                     #f]))]
+          ['not (check-exp (tree-content t))]
+          [(? logic-op?) (list-and (map check-exp (tree-content t)))]
+          [(? cond-op?) (list-and (list (check-arith (first (tree-content t)))
+                                        (check-arith (second (tree-content t)))))]))      
+      
+      (define (check-exp t)
+        ; exp 是右值，意味着必须经过初始化
+        ; 通过类型是否是 unknown 恰好可知它是否以初始化
+        ; 若没有，则不是合法右值
+        (match (tree-type t)
+          ['ident
+           (if (get-type t)
+               (let* ([id (car (tree-content t))]
+                      [real-id (get-real-id id env)])
+                 (rename! t real-id)
+                 #t)
+               #f)]
+           [(? arith-op?) (check-arith t)]
+           [(? cond?) (check-condition t)]))
+ 
       (match (tree-type t)
         ['begin (check-begin t)]
         ['assign (check-assign t)]
         ['call (check-call t)]
+        ['read (check-read t)]
         ['print (check-print t)]
         ['while (check-while t)]
         ['if (check-if t)]
         [_ (error "不可能!")]))
     
     ;==========================================================================
-    
-    (if (check-block (tree-content syntax-tree) env)
-        symbol-table
-        #f)))
+    (check-block (tree-content syntax-tree) env)
+    symbol-table))
+    ;(if (check-block (tree-content syntax-tree) env)
+     ;   symbol-table
+      ;  #f)))
 
 (define (print-env env)
   (when env

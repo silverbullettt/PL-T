@@ -23,11 +23,7 @@
 ; arithmetic = ident | number |
 ;              "(" ["+"|"-"|"*"|"/"] arithmetic { arithmetic } ")".
 ;
-; expression = ident | number | "true" | "false" |
-;             "(" "not" condition ")" |
-;             "(" ["and"|"or"] condition { condition } ")"
-;             "(" ["="|"#"|"<"|"<="|">"|">="] arithmetic arithmetic ")
-;             "(" ["+"|"-"|"*"|"/"] arithmetic { arithmetic } ")".
+; expression = condition | arithmetic.
 
 
 (define (PL/T-parser tokens)
@@ -139,7 +135,7 @@
       (make-tree 'call (make-id id))))
   
   (define (statement-read)
-    (let* ([read-tok (match! 'print)] [id (match! 'ident)])
+    (let* ([read-tok (match! 'read)] [id (match! 'ident)])
       (make-tree 'read (make-id id))))
   
   (define (statement-print)
@@ -161,9 +157,6 @@
            [ass-tok (match! 'assign)]
            [expr (exp)])
       (make-tree 'assign (list (make-id lhs) expr))))
-  
-  (define logic-op? (member-tester *logic-op*))
-  (define cond-op? (member-tester *cond-op*))
   
   (define (condition)
      (define (iter)
@@ -210,10 +203,6 @@
              (make-tree op (iter)))
            (report-error 'arithmetic *arith-op*))]
       [_ (report-error 'arithmetic '(number ident \())]))
-  
-  (define arith-op? (member-tester (append *arith-op* '(number))))
-  (define cond? (member-tester
-                 (append *logic-op* *cond-op* '(not true false))))
   
   (define (exp)
     (match (get-token-type)

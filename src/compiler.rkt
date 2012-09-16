@@ -5,6 +5,7 @@
          "PLT-analyzer.rkt"
          "PLT-generator.rkt"
          "PLT-machine.rkt"
+         "define.rkt"
          "util/table.rkt")
 (provide (all-defined-out))
 
@@ -27,8 +28,20 @@
 
 (define t (PL/T-parser
              (PL/T-scanner
-              (read-string-from-file "../sample/test.pl"))))
+              (read-string-from-file "../sample/test_exp.pl"))))
+;(print-tree t)
 (define st (PL/T-analyzer t))
-(define code (PL/T-generator t st))
+(define (type->list t)
+  (list (type-info-type t) (type-info-value t)))
+(map
+ (lambda (x)
+   (map
+    (lambda (y)
+      (if (type-info? y)
+          (type->list y)
+          y))
+    x))
+ (table->list st))
+;(define code (PL/T-generator t st))
 
-(exec "../sample/test.pl")
+;(exec "../sample/test.pl")

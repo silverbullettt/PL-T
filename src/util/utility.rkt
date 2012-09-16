@@ -2,7 +2,7 @@
 
 (provide range accumulate union-append union-append*
          string-find-first string-find-last
-         string-empty? string-split-list
+         string-empty? string-split-list string-contain?
          reverse-pair list-intersect? list-join member-tester
          list-and)
 
@@ -50,6 +50,7 @@
             [else (find-iter (add1 k))]))
     (find-iter 0)))
 
+; ============================= string operation ===============================
 (define (string-find-last str char)
   (let ([str-len (string-length str)])
     (define (find-iter k)
@@ -67,6 +68,10 @@
         (list str)
         (cons (substring str 0 i)
               (string-split-list (substring str (+ i 1)) delim)))))
+
+(define (string-contain? str c)
+  (if (member c (string->list str)) #t #f))
+; =============================================================================
 
 (define (reverse-pair p)
   (cons (cdr p) (car p)))
