@@ -29,21 +29,10 @@
 (define t (PL/T-parser
              (PL/T-scanner
               (read-string-from-file "../sample/test.pl"))))
-;(print-tree t)
+(print-tree t)
 (define st (PL/T-analyzer t))
 (define (type->list t)
   (list (type-info-type t) (type-info-value t)))
-(define (print-st st)
-  (map
-   (lambda (x)
-     (map
-      (lambda (y)
-        (if (type-info? y)
-            (type->list y)
-            y))
-      x))
-   (table->list st)))
-(print-st st)
 (define code (PL/T-generator t st))
 (print-code (car code))
 (PL/T-machine (first code) (second code))

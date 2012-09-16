@@ -62,7 +62,7 @@
                 [right-type (get-type val)])
             ; check type information dynamically
             (cond [(or (eq? right-type 'unknown) (null? val))
-                   (error "ASSIGN ERROR: Unknown value, L~a:~a.~%"
+                   (error 'ASSIGN-ERROR "Unknown value, L~a:~a.~%"
                           (car (id-pos var) (cdr (id-pos var))))]
                   [(eq? left-type 'unknown)
                    (set-type! (id-name var) right-type)
@@ -70,8 +70,8 @@
                   [(eq? left-type right-type)
                    (set-entity-value! var-ent val)]
                   [else
-                   (error "ASSIGN ERROR: ~a '~a' cannot be assigned by ~a, L~a:~a.~%"
-                          left-type (id-name var)
+                   (error 'ASSIGN-ERROR "~a '~a' cannot be assigned by ~a, L~a:~a.~%"
+                          left-type (id-name var) right-type
                           (car (id-pos var)) (cdr (id-pos var)))]))
           (set-value! var val (env-parent env))))
     
@@ -84,40 +84,36 @@
     ; 注意 set 指令和 set-value! 函数的 src 和 dest 是相反的= =
     (define (set src dest) (set-value! dest (get-value src)))
     
-    (define (read var)
+    (define (read-value var)
       (let ([val (read)])
         (set-value! var val)))
     (define (print e)  (printf "~a" (get-value e)))
     
     (define (arith op e1 e2 var)
-      (let ([e1-type (get-type e1)] [e1-val (get-value e1)]
-            [e2-type (get-type e2)] [e2-val (get-value e2)]
-            [var-type (get-type var)])
-        (cond [(or (null? e1-val) (null? e2-val))
-               (error "ARITHMETIC ERROR: Unknown value, ~a" (id-pos var))]
-              [(or (not (eq? e1-type 'number))
-                   (not (eq? e2-type 'number)))
-               (error "ARITHMETIC ERROR: Type '~a' ~a '~a', ~a"
-                      e1-type op e2-type (id-pos var))]
-              [(and (not (eq? var-type 'unknown))
-                    (not (eq? var-type 'number)))
-               (error "ARITHMETIC ERROR: ~a '~a' should be a '~a', ~a"
-                      var-type (id-name var) 'number (id-pos var))]
-              [else
-               (when (eq? var-type 'unknown)
-                 (set-type! (id-name var) 'number))
-               (set-value! var
-                           (eval (list op e1-val e2-val)
-                                 (make-base-namespace)))])))
+      (define (check-type e)
+        (let ([ty (get-type e)])
+          (if (not (eq? ty 'number))
+              (error 'TYPE-ERROR "'~a' expect (~a) type, given (~a), ~a."
+                     (id-name e) 'number ty (id-pos e))
+              #t)))
+      (when (and (check-type e1) (check-type e2))
+        (set-value! var
+                    (eval (list op (get-value e1) (get-value e2))
+                          (make-base-namespace)))))
     
     (define (cond-op op e1 e2 var)
-      (if (eq? op '\#)
-          (set-value! var (not (= (get-value e1)
-                                  (get-value e2))))
-          (set-value! var (eval (list op
-                                      (get-value e1)
-                                      (get-value e2))
-                                (make-base-namespace)))))
+      (define (check-type e)
+        (let ([ty (get-type e)])
+          (if (not (eq? ty 'number))
+              (error 'TYPE-ERROR "'~a' expect (~a) type, given (~a), ~a."
+                     (id-name e) 'number ty (id-pos e))
+              #t)))
+      (let ([v1 (get-value e1)] [v2 (get-value e2)])
+        (when (and (check-type e1) (check-type e2))
+          (if (eq? op '\#)
+              (set-value! var (not (= v1 v2)))
+              (set-value! var (eval (list op v1 v2)
+                                    (make-base-namespace)))))))
     
     (define (logic-op op e1 e2 var)
       (let ([result (if (eq? op 'not)
@@ -134,7 +130,7 @@
              ; allocate instructions
              ['decl (apply declare (cdr inst))]
              ['set (set (second inst) (third inst))]
-             ['read (read (second inst))]
+             ['read (read-value (second inst))]
              ['print (print (second inst))]
              ; jump instructions
              ['goto (ret (exec (second inst) stack env))]

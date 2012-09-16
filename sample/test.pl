@@ -1,13 +1,13 @@
 CONST
   m = 85,
   n = 7;
-
+ 
 VAR
-  x, y, z, q, r;
+  x, y, z, q, r, s;
 
 PROCEDURE divide;
  VAR w;
-
+ 
  PROCEDURE foo;
   ! this is a comment !
   VAR x, bar;
@@ -57,8 +57,11 @@ BEGIN
  y := n;
  CALL divide;
  PRINT q;
- x := 84;
- y := 36;
+ x, y := 84, 36;
+ s := TRUE;
  CALL gcd;
- PRINT z
+ PRINT z;
+ READ x;
+ x, y, z := 1, 2, 3;
+ PRINT x, y, z
 END.

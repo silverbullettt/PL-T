@@ -20,12 +20,12 @@
     (define (get-pos id-tree)
       (second (tree-content id-tree)))
     
-    (define (new-temp)
+    (define (new-temp [pos #f])
       ; all temple variables start with '%'
       (let ([result (make-tree 'temp
-                               (list
-                                (string-append "%tmp"
-                                               (number->string temp-counter))))])
+                               (string-append "%tmp"
+                                               (number->string temp-counter))
+                               pos)])
         (set! temp-counter (add1 temp-counter))
         (add-code! (list 'decl (id-name result)))
         result))
@@ -107,20 +107,26 @@
       (set! call-list
             (cons (add-code!
                    (list 'call
-                         (car (tree-content (tree-content t)))))
+                         (tree-content (tree-content t))))
                   call-list)))
     
     (define (gen-read t)
       (add-code! (list 'read (tree-content t))))
     
     (define (gen-print t)
-      (add-code! (list 'print (gen-exp (tree-content t))))
+      (for-each (lambda (e)
+                  (add-code! (list 'print (gen-exp e)))
+                  (add-code! (list 'print " ")))
+                (tree-content t))
       (add-code! (list 'print "\n")))
     
     (define (gen-assign t)
-      (let ([id (car (tree-content t))]
-            [e (gen-exp (second (tree-content t)))])
-        (add-code! (list 'set e id))))
+      (for-each
+       (lambda (var-exp)
+         (let ([id (first var-exp)]
+               [e (gen-exp (second var-exp))])
+           (add-code! (list 'set e id))))
+       (tree-content t)))
     
     (define (gen-if t)
       (let ([cond-res (gen-cond (first (tree-content t)))]
@@ -148,14 +154,14 @@
       (define (construct)
         ; initial const and variable
         (for-each (lambda (x)
-                    (let ([id (car (tree-content (car x)))])
+                    (let ([id (tree-content (car x))])
                       (add-code! (list 'decl id))
-                      (add-code! (list 'set (lookup id 'value) (make-tree 'const (list id))))))
+                      (add-code! (list 'set (lookup id 'value) (car x)))))
                   (if (tree? (first (tree-content t)))
                       (tree-content (first (tree-content t)))
                       '()))
         (for-each (lambda (x)
-                    (let ([id (car (tree-content x))])
+                    (let ([id (tree-content x)])
                       (add-code! (list 'decl id))))
                   (if (tree? (second (tree-content t)))
                       (tree-content (second (tree-content t)))
@@ -182,9 +188,7 @@
 (define (print-code code-list)
   (define (tree->string t)
     (if (tree? t)
-        (format "~a" (if (eq? (tree-type t) 'temp)
-                         (tree-content t)
-                         (car (tree-content t))))
+        (format "~a" (tree-content t))
         t))
   (let f ([index 0])
     (when (< index (vector-length code-list))
