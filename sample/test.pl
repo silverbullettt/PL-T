@@ -45,7 +45,7 @@ BEGIN
 END;
 
 PROCEDURE func1;
-VAR x;
+VAR _x, y123Y, z_f;
 CALL func2;
 
 PROCEDURE func2;
@@ -61,7 +61,7 @@ BEGIN
  s := TRUE;
  CALL gcd;
  PRINT z;
- READ x;
- x, y, z := 1, 2, 3;
+ READ z;
+ x, y, z := 1., 2.1, 3;
  PRINT x, y, z
 END.
