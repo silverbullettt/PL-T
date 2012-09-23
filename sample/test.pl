@@ -64,7 +64,6 @@ BEGIN
  s := (@ "abc" " , " "def");
  PRINT s;
  READ s;
- s := (<- "I'm ~a, ~a years old, I love ~a" "TT" 21 s);
- PRINT s;
- PRINT x, y, z
+ s := (<- "I'm ~a, ~a years old, I hate ~a!!!" "TT" 21 s);
+ PRINT s
 END.

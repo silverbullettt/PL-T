@@ -23,7 +23,7 @@
 (define *downcase* (char-range #\a #\z))
 (define *upcase* (char-range #\A #\Z))
 (define *alphabet* (append *downcase* *upcase*))
-(define *symbol* (string->list "`~!@#$%^&*()_-+=[]{}|\\,./?;:'\" \t\n"))
+(define *symbol* (string->list "`~!@#$%^&*_-+=()[]{}<>|\\,./?;:'\" \t\n"))
 
 (define *wildcard-char* '(#\d #\c))
 (define *wildcard-map* (make-hash '((#\d . digit) (#\c . char))))

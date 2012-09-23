@@ -49,6 +49,6 @@
   (list (type-info-type t) (type-info-value t)))
 (define code (PL/T-generator t st))
 (print-code (car code))
-(PL/T-machine (first code) (second code))
+;(PL/T-machine (first code) (second code))
 
 ;(exec "../sample/test.pl")

@@ -18,8 +18,8 @@
 
 (define (bool->int b) (if b 1 0))
 (define bool-comp  
-  (list boolean?
-        (make-not boolean?)
+  (list boolean=?
+        (make-not boolean=?)
         (lambda (b1 b2)
           (< (bool->int b1) (bool->int b2)))
         (lambda (b1 b2)

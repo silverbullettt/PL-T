@@ -7,6 +7,7 @@
    '(("~c(~c|~d|_|-|~?)*" ident)
      ("CONST" const) ("VAR" var)
      ("INT|REAL|BOOL|STRING" type) ; type
+     
      ("~d+" int)
      ("~d+.~d+" real)
      ("TRUE|FALSE" bool)

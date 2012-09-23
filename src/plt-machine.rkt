@@ -74,7 +74,7 @@
                    (set-entity-value! var-ent val)]
                   ; convert from real to int
                   [(and (eq? left-type 'int) (eq? right-type 'real))
-                   (set-entity-value! var-ent (truncate val))]
+                   (set-entity-value! var-ent (exact-truncate val))]
                   ; convert from int to real
                   [(and (eq? left-type 'real) (eq? right-type 'int))
                    (set-entity-value! var-ent (+ val 0.0))]
