@@ -41,6 +41,14 @@
     (PL/T-scanner
      (read-string-from-file filename)))))
 
+(define (gen [filename "../sample/test.pl"])
+  (let* ([t (PL/T-parser
+             (PL/T-scanner
+              (read-string-from-file filename)))]
+         [st (PL/T-analyzer t)])
+    (if st
+        (PL/T-generator t st)
+        #f)))
 
 (define t (parse))
 (print-tree t)

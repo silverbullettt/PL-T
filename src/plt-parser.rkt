@@ -239,7 +239,8 @@
             (new-tree op (list l-exp r-exp) (tok-pos op-tok)))]
          ['logic-op
           (let* ([op-tok (get-token!)]
-                 [op (string->symbol (tok-content op-tok))])
+                 [op (string->symbol
+                      (string-downcase (tok-content op-tok)))])
             (if (eq? op 'not)
                 (let ([result (new-tree 'not (exp))])
                   (match! '\))

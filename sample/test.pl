@@ -1,5 +1,5 @@
 CONST
-  m(85), n(7), pi(3.14), name("TT"), right?(TRUE);
+  m(85), n(7), pi(3.14), name("TT"), right?(#t);
 
 VAR
   x:INT, y(100), z:INT, q(m), r((+ 1 2 3)), s("foo"), ok?:BOOL;
@@ -51,7 +51,7 @@ PROCEDURE func2;
 PRINT x;
 
 BEGIN
- PRINT 1234;
+ PRINT r;
  x := m;
  y := n;
  CALL divide;
@@ -61,9 +61,10 @@ BEGIN
  PRINT z;
  !READ z;!
  x, y, z := 1.0, 2.1, 3;
- s := (@ "abc" " , " "def");
+ s := (@ "abc" (@ "def" "ghi"));
  PRINT s;
- READ s;
+ ok? := (AND 100 x y #f);
+ PRINT ok?,100,x,y,#f;
  s := (<- "I'm ~a, ~a years old, I hate ~a!!!" "TT" 21 s);
- PRINT s
+ PRINT s, ok?
 END.

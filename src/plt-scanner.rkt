@@ -10,7 +10,7 @@
      
      ("~d+" int)
      ("~d+.~d+" real)
-     ("TRUE|FALSE" bool)
+     ("#t|#f" bool)
      ("\"([^\"\\]|\\\"|\\\\)*\"" string)
      
      ("~+|-|~*|/" arith-op)        ; arithmetic operator

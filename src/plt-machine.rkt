@@ -1,5 +1,6 @@
 #lang racket
-(require "util/table.rkt" "define.rkt" "comparer.rkt")
+(require "util/table.rkt" "util/utility.rkt"
+         "define.rkt" "comparer.rkt")
 (provide PL/T-machine)
 
 ; instruction set:
@@ -9,10 +10,10 @@
 ; (return)             -> return the addr which in the top of stack
 ; (if-false e addr)    -> if e is #f, go to addr
 ; (goto addr)          -> go to addr directly
-; (arth-op e1 e2 var)  -> set the value of e1 arth-op e2 to var
-; (cond-op e1 e2 var)  -> set the value of e1 cond-op e2 to var
+; (arth-op args var)   -> set the value of e1 arth-op e2 to var
+; (comp-op args var)   -> set the value of e1 cond-op e2 to var
 ; (logic-op e1 e2 var) -> set the value of e1 logic-op e2 to var
-; (str-op )
+; (str-op args var)    -> set...
 ; (push e)
 ; (pop var)
 ; (print e)            -> print the value of e to screen
@@ -96,16 +97,16 @@
         (set-value! var val)))
     (define (print e)  (printf "~a" (get-value e)))
     
-    (define (arith op e1 e2 var)
+    (define (arith op args var)
       (define (check-type e)
         (let ([ty (get-type e)])
           (if (or (eq? ty 'int) (eq? ty 'real))
               #t
               (error 'ARITH-ERROR "expect (real/int) type, given (~a) '~a', ~a."
                      ty (id-name e) (id-pos e)))))
-      (when (and (check-type e1) (check-type e2))
+      (when (list-and (map check-type args))
         (set-value! var
-                    (eval (list op (get-value e1) (get-value e2))
+                    (eval (cons op (map get-value args))
                           (make-base-namespace)))))
     
     (define (comp-op op e1 e2 var)
@@ -129,12 +130,13 @@
              [comparer (get-comparer ty op)])
         (set-value! var (comparer v1 v2))))
     
-    (define (logic-op op e1 e2 var)
-      (let ([result (if (eq? op 'not)
-                        (not (get-value e1))
-                        (eval (list op (get-value e1) (get-value e2))
-                              (make-base-namespace)))])
-        (set-value! var (if result #t #f))))
+    (define (logic-op op args var)
+      (let ([result
+             (match op
+               ['not (not (get-value args))]
+               ['and (list-and (map get-value args))]
+               ['or (list-or (map get-value args))])])
+        (set-value! var result)))
     
     (define (str-op op args var)
       (match op
@@ -167,7 +169,7 @@
              ['decl (apply declare (cdr inst))]
              ['set (set (second inst) (third inst))]
              ['read (read-value (second inst))]
-             ['print (print (second inst))]
+             ['print (print (get-value (second inst)))]
              ; jump instructions
              ['goto (ret (exec (second inst) stack env))]
              ['if-false (when (not (get-value (second inst)))

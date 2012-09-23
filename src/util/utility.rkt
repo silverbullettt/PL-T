@@ -5,7 +5,7 @@
          string-empty? string-split-list string-contain?
          string-startswith? string-endswith?
          reverse-pair list-intersect? list-join member-tester
-         list-and)
+         list-and list-or)
 
 (define (accumulate op initial seq)
   (if (null? seq)
@@ -110,9 +110,11 @@
   (lambda (x) (if (member x set) #t #f)))
 
 (define (list-and ls)
-  (call/cc
-   (lambda (return)
-     (let f ([ls ls])
-       (cond [(null? ls) #t]
-             [(not (car ls)) (return #f)]
-             [(f (cdr ls))])))))
+  (cond [(null? ls) #t]
+        [(not (car ls)) #f]
+        [else (list-and (cdr ls))]))
+
+(define (list-or ls)
+  (cond [(null? ls) #f]
+        [(car ls) #t]
+        [else (list-or (cdr ls))]))

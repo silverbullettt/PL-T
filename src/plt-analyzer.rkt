@@ -19,7 +19,7 @@
     (define (const-tok-value tok)
       (match (tree-type tok)
         [(or 'int 'real) (string->number (tree-content tok))]
-        ['bool (string=? (tree-content tok) "TRUE")]
+        ['bool (string=? (tree-content tok) "#t")]
         ['string (tree-content tok)]
         [x (error 'const-tok-value "Unknown type '~a'" x)]))
     (define (const-type x)

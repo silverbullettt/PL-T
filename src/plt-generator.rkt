@@ -32,43 +32,30 @@
     
     (define (temp? t)
       (and (tree? t) (eq? (tree-type t) 'temp)))
-       
-    ; gen-exp and gen-cond return the name of temp variable
-    (define (iter ls op)
-      (if (= (length ls) 1)
-          (gen-exp (car ls))
-          (let* ([left (gen-exp (first ls))]
-                 [right (gen-exp (second ls))]
-                 [temp (new-temp)])
-            (add-code! (list op left right temp))
-            (iter (cons temp (cddr ls)) op))))
     
     (define const? (member-tester '(int real bool string)))
     (define (const-tok-value tok)
       (match (tree-type tok)
         [(or 'int 'real) (string->number (tree-content tok))]
-        ['bool (tree-content tok)]
+        ['bool (let ([val (tree-content tok)])
+                 (if (boolean? val)
+                     val
+                     (string=? "#t" val)))]
         ['string (tree-content tok)]
         [x (error 'const-tok-value "Unknown type '~a'" x)]))
     
     (define (gen-exp t)
-      (define (primitive x) (match x ['- 0] ['/ 1]))
       (if (temp? t) t
           (match (tree-type t)
             [(? const?) (const-tok-value t)]
             ['ident t] ; position
-            [(or '- '/)
-             (if (= (length (tree-content t)) 1)
-                 (let ([temp (new-temp)]
-                       [op (tree-type t)])
-                   (add-code!
-                    (list op (primitive op)
-                          (gen-exp (car (tree-content t)))
-                          temp))
-                   temp)
-                 (iter (tree-content t) (tree-type t)))]            
             [(? arith-op?)
-             (iter (tree-content t) (tree-type t))]
+             (let ([temp (new-temp)])
+               (add-code!
+                (list (tree-type t)
+                      (map gen-exp (tree-content t))
+                      temp))
+               temp)]
             [(or (? comp-op?) (? logic-op?)) (gen-cond t)]
             [(? str-op?) (gen-str t)]
             [type (error 'exp "Unknown type '~a'~%" type)])))
@@ -77,11 +64,6 @@
       (match (tree-type t)
         ['bool (const-tok-value t)]
         ['ident t]
-        ['not
-         (let ([temp (new-temp)])
-           (add-code!
-            (list 'not (gen-exp (tree-content t)) '() temp))
-           temp)]
         [(? comp-op?)
              (let* ([left (gen-exp (first (tree-content t)))]
                     [right (gen-exp (second (tree-content t)))]
@@ -89,8 +71,18 @@
                (add-code!
                 (list (tree-type t) left right temp))
                temp)]
+        ['not
+         (let ([temp (new-temp)])
+           (add-code!
+            (list 'not (gen-exp (tree-content t)) temp))
+           temp)]
         [(? logic-op?)
-         (iter (tree-content t) (tree-type t))]))
+         (let ([temp (new-temp)])
+           (add-code!
+            (list (tree-type t)
+                  (map gen-exp (tree-content t))
+                  temp))
+           temp)]))
     
     (define (gen-str t)
       (match (tree-type t)
