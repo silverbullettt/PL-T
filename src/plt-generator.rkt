@@ -1,7 +1,7 @@
 #lang racket
 
 ; Code generator of PL/0
-(require "util/table.rkt" "define.rkt")
+(require "util/table.rkt" "util/utility.rkt" "define.rkt")
 (provide PL/T-generator print-code)
 
 (define (PL/T-generator syntax-tree symbol-table)
@@ -32,7 +32,7 @@
     
     (define (temp? t)
       (and (tree? t) (eq? (tree-type t) 'temp)))
-    
+       
     ; gen-exp and gen-cond return the name of temp variable
     (define (iter ls op)
       (if (= (length ls) 1)
@@ -43,12 +43,19 @@
             (add-code! (list op left right temp))
             (iter (cons temp (cddr ls)) op))))
     
+    (define const? (member-tester '(int real bool string)))
+    (define (const-tok-value tok)
+      (match (tree-type tok)
+        [(or 'int 'real) (string->number (tree-content tok))]
+        ['bool (tree-content tok)]
+        ['string (tree-content tok)]
+        [x (error 'const-tok-value "Unknown type '~a'" x)]))
+    
     (define (gen-exp t)
-      (define (primitive x) (match x ['- 0] ['/ 1]))      
+      (define (primitive x) (match x ['- 0] ['/ 1]))
       (if (temp? t) t
           (match (tree-type t)
-            [(or 'true 'false) (tree-content t)]
-            ['number (string->number (tree-content t))]
+            [(? const?) (const-tok-value t)]
             ['ident t] ; position
             [(or '- '/)
              (if (= (length (tree-content t)) 1)
@@ -59,23 +66,23 @@
                           (gen-exp (car (tree-content t)))
                           temp))
                    temp)
-                 (iter (tree-content t) (tree-type t)))]
-            [(or 'not (? cond-op?) (? logic-op?))
-             (gen-cond t)]
+                 (iter (tree-content t) (tree-type t)))]            
             [(? arith-op?)
              (iter (tree-content t) (tree-type t))]
+            [(or (? comp-op?) (? logic-op?)) (gen-cond t)]
+            [(? str-op?) (gen-str t)]
             [type (error 'exp "Unknown type '~a'~%" type)])))
     
     (define (gen-cond t)
       (match (tree-type t)
-        [(or 'true 'false) (tree-content t)]
+        ['bool (const-tok-value t)]
         ['ident t]
         ['not
          (let ([temp (new-temp)])
            (add-code!
             (list 'not (gen-exp (tree-content t)) '() temp))
            temp)]
-        [(? cond-op?)
+        [(? comp-op?)
              (let* ([left (gen-exp (first (tree-content t)))]
                     [right (gen-exp (second (tree-content t)))]
                     [temp (new-temp)])
@@ -84,7 +91,26 @@
                temp)]
         [(? logic-op?)
          (iter (tree-content t) (tree-type t))]))
-         
+    
+    (define (gen-str t)
+      (match (tree-type t)
+        ['string (const-tok-value t)]
+        ['ident t]
+        ['@
+         (let ([temp (new-temp)])
+           (add-code!
+            (list '@ (map gen-str (tree-content t)) temp))
+           temp)]
+        ['<-
+         (let ([temp (new-temp)]
+               [str (gen-str (car (tree-content t)))])
+           (add-code!
+            (list '<- 
+                  (cons str
+                        (map gen-exp (cdr (tree-content t))))
+                  temp))
+           temp)]))
+    
     ; each gen-xxx statement return the end index of itself
     (define (gen-statement t)
       (when (tree? t)
@@ -153,16 +179,26 @@
     (define (gen-block t)
       (define (construct)
         ; initial const and variable
-        (for-each (lambda (x)
-                    (let ([id (tree-content (car x))])
-                      (add-code! (list 'decl id))
-                      (add-code! (list 'set (lookup id 'value) (car x)))))
+        (define (gen-const t)
+          (let* ([id (tree-content (car t))]
+                 [ty (lookup id 'type)]
+                 [val (lookup id 'value)])
+            (add-code! (list 'decl id ty val))))
+        (define (gen-var x)
+          (cond [(tree? x) ; var x;
+                 (add-code! (list 'decl (id-name x)))]
+                [(tree? (second x)) ; var x:exp;
+                 (add-code! (list 'decl (tree-content (car x))
+                                  (lookup (tree-content (car x)) 'type)
+                                  (gen-exp (second x))))]
+                [else ; var x:type;
+                 (add-code! (list 'decl (tree-content (car x))
+                                  (lookup (tree-content (car x)) 'type)))]))
+        (for-each gen-const
                   (if (tree? (first (tree-content t)))
                       (tree-content (first (tree-content t)))
                       '()))
-        (for-each (lambda (x)
-                    (let ([id (tree-content x)])
-                      (add-code! (list 'decl id))))
+        (for-each gen-var
                   (if (tree? (second (tree-content t)))
                       (tree-content (second (tree-content t)))
                       '())))
@@ -184,6 +220,7 @@
                         (list 'call (lookup (second inst) 'entry)))))
        call-list)
       (list code-list entry))))
+
 
 (define (print-code code-list)
   (define (tree->string t)

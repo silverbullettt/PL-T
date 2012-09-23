@@ -1,14 +1,17 @@
 #lang racket
-(require "plt-scanner.rkt" "define.rkt" "util/utility.rkt")
+(require "define.rkt" "util/utility.rkt")
 (provide PL/T-parser print-tree)
 
 ; The syntax parser of PL/T
 
 ; program = block ".".
 ;
-; block = [ "const" ident "=" number { "," ident "=" number} ";" ]
-;         [ "var" ident { "," ident } ";" ]
+; block = [ "const" ident "(" expression ")"  { "," ident "(" expression ")" } ";" ]
+;         [ var-decl ]
 ;         { "procedure" ident ";" block ";" } statement.
+;
+; var-decl = "var" ident [":" type|"(" expression ")"] 
+;            { "," ident [":" type|"(" expression ")"] } ";"
 ;
 ; statement = [ var-list ":=" exp-list | "call" ident |
 ;             "begin" statement {";" statement } "end" |
@@ -20,26 +23,31 @@
 ;
 ; exp-list = expression { , expression }
 ;
-; condition = ident | "true | "false " |
-;             "(" ["="|"#"|"<"|"<="|">"|">="] arithmetic arithmetic ")" |
+; condition = ident | bool
+;             "(" comp-op arithmetic arithmetic ")" |
 ;             "(" "not" condition ")" | "(" ["and"|"or"] condition { condition } ")".
 ;
 ; arithmetic = ident | number |
-;              "(" ["+"|"-"|"*"|"/"] arithmetic { arithmetic } ")".
+;              "(" arith-op arithmetic { arithmetic } ")".
 ;
-; expression = condition | arithmetic.
+; str        = ident | string | "(" str-op string { string } ")".
+;
+; expression = condition | arithmetic | string.
 
 
 (define (PL/T-parser tokens)
   
-  (define (get-type tok) (first tok))
+  (define (tok-type tok) (first tok))
+  (define (tok-content tok) (second tok))
+  (define (tok-pos tok) (cons (third tok) (fourth tok)))
+  
   (define (get-token-type) (if (null? tokens)
                                #f
-                               (get-type (first tokens))))
+                               (tok-type (first tokens))))
   ; get type of second token
   (define (get-token2-type) (if (null? (cdr tokens))
                                 #f
-                                (get-type (second tokens))))
+                                (tok-type (second tokens))))
   (define (get-token)
     (if (null? tokens) #f  (first tokens)))
   (define (get-token!)
@@ -58,9 +66,11 @@
   (define (new-tree type content [pos #f])
     (make-tree type content pos))
   (define (get-id-inf tok)
-    (list (second tok) (cons (third tok) (fourth tok))))
+    (list (tok-content tok) (tok-pos tok)))
   (define (make-id tok)
-    (new-tree 'ident (second tok) (cons (third tok) (fourth tok))))
+    (new-tree 'ident (tok-content tok) (tok-pos tok)))
+  (define (make-const tok)
+    (new-tree (tok-type tok) (tok-content tok) (tok-pos tok)))
   (define (report-error type expected [tok (get-token)])
     (error 'PL/0-parser
            "syntax error in (~a), excepted: ~a, given: ~a -- L~a:~a"
@@ -70,9 +80,9 @@
   (define (program)
     (let ([blk (block)])
       (match! '\.)
-        (if (null? tokens)
-            (new-tree 'program blk)
-            (report-error 'program))))
+      (if (null? tokens)
+          (new-tree 'program blk)
+          (report-error 'program))))
   
   (define (block)
     (define (iter) ; for procedure
@@ -87,28 +97,44 @@
   
   (define (const-init)
     (define (iter)
-      (let* ([id (match! 'ident)] [init (match! *init*)] [num (match! 'number)]
+      (let* ([id (match! 'ident)]
+             [lbr (match! '\()]
+             [val (const-value)]
+             [rbr (match! '\))]
              [delim (get-token!)])
-        (match (get-type delim)
-          ['\, (cons (list (make-id id) (second num)) (iter))]
-          ['\; (list (list (make-id id) (second num)))]
+        (match (tok-type delim)
+          ['\, (cons (list (make-id id) val) (iter))]
+          ['\; (list (list (make-id id) val))]
           [_ (report-error 'const '(\, \;) delim)])))
     (let* ([con (match! 'const)] [content (iter)])
       (new-tree 'const content)))
- 
+  
+  ; new declare list
   (define (var-decl)
+    (define (decl)
+      (let* ([id (match! 'ident)] [id-tree (make-id id)])
+        (match (get-token-type)
+          ['\( (match! '\()
+               (let ([expr (exp)])
+                 (match! '\))
+                 (list id-tree expr))]
+          [': (match! ':) (list id-tree (string->symbol
+                                         (string-downcase
+                                          (second (match! 'type)))))]
+          [(or '\, '\;) id-tree]
+          [_ (report-error 'var '(\, \( : \;) (get-token!))])))
     (define (iter)
-      (let* ([id (match! 'ident)] [delim (get-token!)])
-        (match (get-type delim)
-          ['\, (cons (make-id id) (iter))]
-          ['\; (list (make-id id))]
+      (let* ([id (decl)] [delim (get-token!)])
+        (match (tok-type delim)
+          ['\, (cons id (iter))]
+          ['\; (list id)]
           [_ (report-error 'var '(\, \;) delim)])))
-    (let* ([con (match! 'var)] [content (iter)])
+    (let* ([unused (match! 'var)] [content (iter)])
       (new-tree 'var content)))
   
-   (define (procedure)
+  (define (procedure)
     (let* ([proc-tok (match! 'proc)] [id-tok (match! 'ident)]
-           [semi1 (match! '\;)] [blk (block)] [semi2 (match! '\;)])
+                                     [semi1 (match! '\;)] [blk (block)] [semi2 (match! '\;)])
       (new-tree 'proc (list (make-id id-tok) blk))))
   
   ; ========================= statement ===================
@@ -145,7 +171,7 @@
           ['assign (list id)]
           [_ (report-error 'var '(\, assign) (get-token!))])))
     (iter))
-    
+  
   (define (exp-list)
     ; exp-list 只在三个地方用到:assign, print, call
     ; assign, print 以分号或 end 结束, call 以右括号结束
@@ -168,15 +194,15 @@
   (define (statement-print)
     (let* ([print-tok (match! 'print)] [exp-list (exp-list)])
       (new-tree 'print exp-list)))
-    
+  
   (define (statement-if)
     (let* ([if-tok (match! 'if)] [condi (condition)]
-           [then-tok (match! 'then)] [stmt (statement)])
+                                 [then-tok (match! 'then)] [stmt (statement)])
       (new-tree 'if (list condi stmt))))
   
   (define (statement-while)
     (let* ([while-tok (match! 'while)] [condi (condition)]
-           [do-tok (match! 'do)] [stmt (statement)])
+                                       [do-tok (match! 'do)] [stmt (statement)])
       (new-tree 'while (list condi stmt))))
   
   (define (statement-assign)
@@ -188,36 +214,39 @@
   
   ; ========================= expression ==================
   
+  (define (const-value)
+    (if (member (get-token-type) '(int real bool string))
+        (make-const (get-token!))
+        (report-error 'const-value '(int real bool string))))
+  
   (define (condition)
-     (define (iter)
-       (if (eq? (get-token-type) '\))
-           (begin (match! '\)) '())
-           (cons (exp) (iter))))
+    (define (iter)
+      (if (eq? (get-token-type) '\))
+          (begin (match! '\)) '())
+          (cons (exp) (iter))))
     (match (get-token-type)
-      ['ident (make-id (match! 'ident))]
-      [(or 'true 'false)
-       (let ([tok (get-token!)])
-         (new-tree 'true #t (cons (third tok) (fourth tok))))]
+      ['ident (make-id (get-token!))]
+      ['bool (make-const (get-token!))]
       ['\(
        (match! '\()       
        (match (get-token-type)
-         ['not
-          (let ([result #f])
-            (match! 'not)
-            (set! result (new-tree 'not (exp)))
+         ['comp-op
+          (let* ([op-tok (get-token!)]
+                 [op (string->symbol (tok-content op-tok))]
+                 [l-exp (exp)]
+                 [r-exp (exp)])
             (match! '\))
-            result)]
-         [(? logic-op?)
-          (let ([op (get-type (get-token!))])
-            (new-tree op (iter)))]
-          [(? cond-op?)
-           (let* ([op (get-type (get-token!))]
-                  [l-arith (arithmetic)]
-                  [r-arith (arithmetic)])
-             (match! '\))
-             (new-tree op (list l-arith r-arith)))]
-          [_ (report-error 'condition (append *cond-op* *logic-op* '(not)))])]
-       [_ (report-error 'condition '(true false ident \())]))
+            (new-tree op (list l-exp r-exp) (tok-pos op-tok)))]
+         ['logic-op
+          (let* ([op-tok (get-token!)]
+                 [op (string->symbol (tok-content op-tok))])
+            (if (eq? op 'not)
+                (let ([result (new-tree 'not (exp))])
+                  (match! '\))
+                  result)
+                (new-tree op (iter) (tok-pos op-tok))))]           
+         [_ (report-error 'condition (append *comp-op* *logic-op* '(not)))])]
+      [_ (report-error 'condition '(true false ident \())]))
   
   (define (arithmetic)
     (define (iter)
@@ -226,28 +255,56 @@
           (cons (arithmetic) (iter))))
     (match (get-token-type)
       ['ident (make-id (match! 'ident))]
-      ['number
-       (let ([tok (get-token!)])
-         (new-tree 'number (second tok) (cons (third tok) (fourth tok))))]
+      [(or 'int 'real) (make-const (get-token!))]
       ['\(
        (match! '\()
-       (if (member (get-token-type) *arith-op*)
-           (let ([op (get-type (get-token!))])
-             (new-tree op (iter)))
+       (if (eq? (get-token-type) 'arith-op)
+           (let* ([op-tok (get-token!)]
+                  [op (string->symbol (tok-content op-tok))])
+             (new-tree op (iter) (tok-pos op-tok)))
            (report-error 'arithmetic *arith-op*))]
       [_ (report-error 'arithmetic '(number ident \())]))
   
+  (define (str)
+    (define (@iter)
+      (if (eq? (get-token-type) '\))
+          (begin (match! '\)) '())
+          (cons (str) (@iter))))
+    (define (<-iter)
+      (if (eq? (get-token-type) '\))
+          (begin (match! '\)) '())
+          (cons (exp) (<-iter))))
+    (match (get-token-type)
+      ['ident (make-id (get-token!))]
+      ['string (make-const (get-token!))]
+      ['\(
+       (match! '\()
+       (let* ([op-tok (get-token!)]
+              [op (string->symbol (tok-content op-tok))])
+         (match op
+           ['@ (new-tree '@ (@iter) (tok-pos op-tok))]
+           ['<-
+            (if (or (eq? (get-token-type) 'string)
+                    (eq? (get-token-type) 'ident))
+                (let ([str (make-const (get-token!))])
+                  (new-tree '<- (cons str (<-iter)) (tok-pos op-tok)))
+                (report-error 'str '(string ident)))]
+           [_ (report-error 'str '(@ <-))]))]
+      [_ (report-error 'str *str-op*)]))
+  
   (define (exp)
     (match (get-token-type)
-      ['ident (make-id (match! 'ident))]
-      [(? arith-op?) (arithmetic)]
-      [(? cond?) (condition)]
+      ['ident (make-id (get-token!))]
+      [(or 'int 'real) (arithmetic)]
+      ['bool (condition)]
+      ['string (str)]
       ['\(
        (match (get-token2-type)
-         [(? arith-op?) (arithmetic)]
-         [(? cond?) (condition)]
-         [_ (report-error 'exp '(arith-op condition-op))])]
-      [_ (report-error 'exp '(number true false ident \())]))
+         ['arith-op (arithmetic)]
+         [(or 'comp-op 'logic-op) (condition)]
+         ['str-op (str)]
+         [_ (report-error 'exp '(arith-op condition-op str-op))])]
+      [_ (report-error 'exp '(int real bool string ident \())]))
   
   (if (null? tokens)
       null

@@ -3,6 +3,7 @@
 (provide range accumulate union-append union-append*
          string-find-first string-find-last
          string-empty? string-split-list string-contain?
+         string-startswith? string-endswith?
          reverse-pair list-intersect? list-join member-tester
          list-and)
 
@@ -71,6 +72,23 @@
 
 (define (string-contain? str c)
   (if (member c (string->list str)) #t #f))
+
+(define (string-startswith? str sub)
+  (let ([str-len (string-length str)]
+        [sub-len (string-length sub)])
+  (cond [(< str-len sub-len) #f]
+        [(= str-len sub-len) (string=? str sub)]
+        [else
+         (string=? sub (substring str 0 sub-len))])))
+
+(define (string-endswith? str sub)
+  (let ([str-len (string-length str)]
+        [sub-len (string-length sub)])
+  (cond [(< str-len sub-len) #f]
+        [(= str-len sub-len) (string=? str sub)]
+        [else
+         (string=? sub (substring str (- str-len sub-len)))])))
+
 ; =============================================================================
 
 (define (reverse-pair p)

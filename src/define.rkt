@@ -7,9 +7,11 @@
 (define (id-pos id) (tree-pos id))
 
 (define-struct env (name st parent) #:mutable)
-(define-struct type-info (type value) #:mutable)
-; type : var, const, (array, struct)
-; value: unknown, number, bool, (string, proc)
+(define-struct type-info (type value const?) #:mutable)
+; type:  atom, procedure, (array)
+; value: int, real, bool, string <- atom
+;                      type-info <- array
+;     (list-of-args list-of-ret) <- procedure
 (define-struct entity (name type value) #:mutable)
 
 (define *plus* '+)
@@ -18,13 +20,12 @@
 (define *over* '/)
 
 (define *arith-op* '(+ - * /))
-(define *logic-op* '(and or))
-(define *cond-op* '(= \# < <= > >=))
+(define *logic-op* '(and or not))
+(define *comp-op* '(= \# < <= > >=))
+(define *str-op* '(@ <-))
 
-(define arith-op? (member-tester (append *arith-op* '(number))))
+(define arith-op? (member-tester *arith-op*))
 (define logic-op? (member-tester *logic-op*))
-(define cond-op? (member-tester *cond-op*))
-(define cond? (member-tester
-                 (append *logic-op* *cond-op* '(not true false))))
-
-(define *init* '=)
+(define comp-op? (member-tester *comp-op*))
+(define cond-op? (member-tester (append *logic-op* *comp-op*)))
+(define str-op? (member-tester *str-op*))

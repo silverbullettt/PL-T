@@ -15,7 +15,7 @@
    (transcoded-port (open-file-input-port filename)
                     (make-transcoder (latin-1-codec)))))
 
-(define (exec filename)
+(define (exec [filename "../sample/test.pl"])
   (let* ([t (PL/T-parser
              (PL/T-scanner
               (read-string-from-file filename)))]
@@ -26,9 +26,23 @@
                         (second code-ent)))
         (error 'exec "Something wrong!"))))
 
-(define t (PL/T-parser
-             (PL/T-scanner
-              (read-string-from-file "../sample/test.pl"))))
+(define (scan [filename "../sample/test.pl"])
+  (PL/T-scanner
+    (read-string-from-file filename)))
+
+(define (parse [filename "../sample/test.pl"])
+  (PL/T-parser
+   (PL/T-scanner
+    (read-string-from-file filename))))
+  
+(define (analyse [filename "../sample/test.pl"])
+  (PL/T-analyzer
+   (PL/T-parser
+    (PL/T-scanner
+     (read-string-from-file filename)))))
+
+
+(define t (parse))
 (print-tree t)
 (define st (PL/T-analyzer t))
 (define (type->list t)
@@ -36,11 +50,5 @@
 (define code (PL/T-generator t st))
 (print-code (car code))
 (PL/T-machine (first code) (second code))
-
-(define (analyzer [filename "../sample/test.pl"])
-  (PL/T-analyzer
-   (PL/T-parser
-    (PL/T-scanner
-     (read-string-from-file filename)))))
 
 ;(exec "../sample/test.pl")

@@ -1,9 +1,8 @@
 CONST
-  m = 85,
-  n = 7;
- 
+  m(85), n(7), pi(3.14), name("TT"), right?(TRUE);
+
 VAR
-  x, y, z, q, r, s;
+  x:INT, y(100), z:INT, q(m), r((+ 1 2 3)), s("foo"), ok?:BOOL;
 
 PROCEDURE divide;
  VAR w;
@@ -33,7 +32,7 @@ PROCEDURE divide;
  END;
 
 PROCEDURE gcd;
-VAR f, g;
+VAR f:INT, g:INT;
 BEGIN
   f := x;
   g := y;
@@ -45,7 +44,7 @@ BEGIN
 END;
 
 PROCEDURE func1;
-VAR _x, y123Y, z_f;
+VAR x, y123Y, z_f;
 CALL func2;
 
 PROCEDURE func2;
@@ -58,10 +57,14 @@ BEGIN
  CALL divide;
  PRINT q;
  x, y := 84, 36;
- s := TRUE;
  CALL gcd;
  PRINT z;
- READ z;
- x, y, z := 1., 2.1, 3;
+ !READ z;!
+ x, y, z := 1.0, 2.1, 3;
+ s := (@ "abc" " , " "def");
+ PRINT s;
+ READ s;
+ s := (<- "I'm ~a, ~a years old, I love ~a" "TT" 21 s);
+ PRINT s;
  PRINT x, y, z
 END.
