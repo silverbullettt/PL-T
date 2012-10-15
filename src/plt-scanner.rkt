@@ -17,6 +17,7 @@
      ("=|#|<|<=|>|>=" comp-op)     ; compare operator
      ("AND|OR|NOT" logic-op)       ; logic operator
      ("@|<-" str-op)               ; string operator
+     ("NULL" null) ; ("NULL?" null?)
      
      ("~(" \() (")" \))
      ; ("~[" \[) ("]" \]) ; for array
@@ -24,12 +25,13 @@
      
      (":" :) ("," \,) (";" \;) (":=" assign) ("." \.)
      
-     ("PROCEDURE" proc) ("CALL" call) ("RETURN" return)
-     ("READ" read) ("PRINT" print)     ; I/O
-     ("BEGIN" begin) ("END" end)
-     ("IF" if) ("THEN" then)           ; branch keywords
-     ("WHILE" while) ("DO" do)         ; loop keywords
-     
+     ("PROCEDURE" proc) ("->" ->)
+     ("CALL" call) ("RETURN" return)
+     ("READ" read) ("PRINT" print)    ; I/O
+     ("BEGIN" begin) ("END" end) 
+     ("IF" if) ("THEN" then) ; ("ELSE" else) 
+     ("WHILE" while) ("DO" do) ; ("FOR" for)
+     ;("BREAK" break) ("CONTINUE" continue)
      ("![^!]*!" comment))
    'comment
    'string))

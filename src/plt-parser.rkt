@@ -8,12 +8,15 @@
 ;
 ; block = [ "const" ident "(" expression ")"  { "," ident "(" expression ")" } ";" ]
 ;         [ var-decl ]
-;         { "procedure" ident ";" block ";" } statement.
+;         { "procedure" ident "(" var-list ")" block ";" } statement.
 ;
-; var-decl = "var" ident [":" type|"(" expression ")"] 
-;            { "," ident [":" type|"(" expression ")"] } ";"
+; var-decl = "var" decl-list ";"
 ;
-; statement = [ var-list ":=" exp-list | "call" ident |
+; decl-list = ident [":" type|"(" expression ")"] 
+;             { "," ident [":" type|"(" expression ")"] }
+;
+; statement = [ var-list ":=" exp-list | 
+;             "call" ident "(" exp-list ")" |
 ;             "begin" statement {";" statement } "end" |
 ;             "if" condition "then" statement |
 ;             "while" condition "do" statement |
@@ -133,9 +136,25 @@
       (new-tree 'var content)))
   
   (define (procedure)
+    (define (decl)
+      (let* ([id (match! 'ident)] [id-tree (make-id id)])
+        (match (get-token-type)
+          [': (match! ':) (list id-tree (string->symbol
+                                         (string-downcase
+                                          (second (match! 'type)))))]
+          [(or '\, '\)) id-tree]
+          [_ (report-error 'procedure '(\, \) :) (get-token!))])))
+    (define (iter)
+      (let ([id (decl)])
+        (match (get-token-type)
+          ['\, (get-token!) (cons id (iter))]
+          ['\) (list id)]
+          [_ (report-error 'procedure '(\, \)) (get-token!))])))
     (let* ([proc-tok (match! 'proc)] [id-tok (match! 'ident)]
-                                     [semi1 (match! '\;)] [blk (block)] [semi2 (match! '\;)])
-      (new-tree 'proc (list (make-id id-tok) blk))))
+           [lbrac (match! '\()] [var-list (iter)] [rbrac (match! '\))]
+           [blk (block)]
+           [semi2 (match! '\;)])
+      (new-tree 'proc (list (make-id id-tok) var-list blk))))
   
   ; ========================= statement ===================
   (define (statement)
@@ -184,8 +203,12 @@
     (iter))
   
   (define (statement-call)
-    (let* ([call-tok (match! 'call)] [id (match! 'ident)])
-      (new-tree 'call (make-id id))))
+    (let* ([call-tok (match! 'call)]
+           [id (match! 'ident)]
+           [lbrac (match! '\()]
+           [exp-list (exp-list)]
+           [rbrac (match! '\))])
+      (new-tree 'call (list (make-id id) exp-list))))
   
   (define (statement-read)
     (let* ([read-tok (match! 'read)] [id (match! 'ident)])

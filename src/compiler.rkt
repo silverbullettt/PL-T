@@ -34,7 +34,7 @@
   (PL/T-parser
    (PL/T-scanner
     (read-string-from-file filename))))
-  
+
 (define (analyse [filename "../sample/test.pl"])
   (PL/T-analyzer
    (PL/T-parser
@@ -49,6 +49,8 @@
     (if st
         (PL/T-generator t st)
         #f)))
+
+(print-tree (parse "../sample/test_call.pl"))
 
 (define t (parse))
 (print-tree t)

@@ -1,6 +1,5 @@
 CONST
-  m = 85,
-  n = 7;
+  m(85), n(7);
  
 VAR
   x, y, z, q, r;
@@ -8,7 +7,7 @@ VAR
 PROCEDURE foo;
  VAR x;
  BEGIN
-  q := TRUE;
+  q := #t;
   CALL bar
  END;
 
@@ -39,12 +38,13 @@ BEGIN
  ! x,y := 1,2; !
  !READ m;!
  x := m;
- x := TRUE;
- y := (AND TRUE FALSE);
+ x := #t;
+ y := (AND #t #f);
  r := (+ (* 1 2) (- 10 3 2 1) x);
- CALL foo;
- IF TRUE THEN PRINT x;
+ !CALL foo(x, y, z);!
+ ! x, y := CALL foo(1, 2, 3);!
+ IF #t THEN PRINT x;
  IF (> 100 x) THEN PRINT x;
- IF (AND 100 x y FALSE) THEN PRINT x;
+ IF (AND 100 x y #f) THEN PRINT x;
  PRINT z
 END.

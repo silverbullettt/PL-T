@@ -8,6 +8,7 @@ PROCEDURE divide;
  VAR w;
  
  PROCEDURE foo;
+ ! PROCEDURE foo(bar:INT, yeah:STRING, hey) -> (INT, STRING, VAR); !
   ! this is a comment !
   VAR x, bar;
   BEGIN
