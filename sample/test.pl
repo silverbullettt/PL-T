@@ -4,23 +4,9 @@ CONST
 VAR
   x:INT, y(100), z:INT, q(m), r((+ 1 2 3)), s("foo"), ok?:BOOL;
 
-PROCEDURE divide;
- VAR w;
- 
- PROCEDURE foo;
- ! PROCEDURE foo(bar:INT, yeah:STRING, hey) -> (INT, STRING, VAR); !
-  ! this is a comment !
-  VAR x, bar;
-  BEGIN
-   PRINT 777;
-   x := 999;
-   z := 123
-  END;
-
+PROCEDURE divide(r:INT, w:INT)
  BEGIN
-  r := x;
   q := 0;
-  w := y;
   WHILE (<= w r) DO w := (* 2 w);
   WHILE (> w y) DO BEGIN
    q := (* 2 q);
@@ -32,8 +18,7 @@ PROCEDURE divide;
   END
  END;
 
-PROCEDURE gcd;
-VAR f:INT, g:INT;
+PROCEDURE gcd(f:INT, g:INT)
 BEGIN
   f := x;
   g := y;
@@ -44,21 +29,17 @@ BEGIN
   z := f
 END;
 
-PROCEDURE func1;
-VAR x, y123Y, z_f;
-CALL func2;
-
-PROCEDURE func2;
-PRINT x;
+PROCEDURE nothing()
+ PRINT "I don't care.";
 
 BEGIN
  PRINT r;
  x := m;
  y := n;
- CALL divide;
+ CALL divide(x, y);
  PRINT q;
  x, y := 84, 36;
- CALL gcd;
+ CALL gcd(x, y);
  PRINT z;
  !READ z;!
  x, y, z := 1.0, 2.1, 3;
@@ -67,5 +48,6 @@ BEGIN
  ok? := (AND 100 x y #f);
  PRINT ok?,100,x,y,#f;
  s := (<- "I'm ~a, ~a years old, I hate ~a!!!" "TT" 21 s);
- PRINT s, ok?
+ PRINT s, ok?;
+ CALL nothing()
 END.

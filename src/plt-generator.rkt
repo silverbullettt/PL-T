@@ -122,10 +122,14 @@
       pc)
     
     (define (gen-call t)
+      (for-each
+       (lambda (arg)
+         (add-code! (list 'push (gen-exp arg))))
+       (reverse (second (tree-content t))))
       (set! call-list
             (cons (add-code!
                    (list 'call
-                         (tree-content (tree-content t))))
+                         (tree-content (first (tree-content t)))))
                   call-list)))
     
     (define (gen-read t)
@@ -163,12 +167,13 @@
         pc))
     
     (define (gen-proc t)
-      (let ([entry (gen-block (second (tree-content t)))])
+      (let ([entry (gen-block (third (tree-content t))
+                              (second (tree-content t)))])
         (insert! (first (tree-content t)) 'entry entry)
         (add-code! (list 'return))
         entry))
     
-    (define (gen-block t)
+    (define (gen-block t args)
       (define (construct)
         ; initial const and variable
         (define (gen-const t)
@@ -186,6 +191,12 @@
                 [else ; var x:type;
                  (add-code! (list 'decl (tree-content (car x))
                                   (lookup (tree-content (car x)) 'type)))]))
+        
+        (for-each gen-var args)
+        (for-each (lambda (x)
+                    (add-code!
+                     (list 'pop (if (tree? x) x (car x)))))
+                  args)
         (for-each gen-const
                   (if (tree? (first (tree-content t)))
                       (tree-content (first (tree-content t)))
@@ -202,7 +213,7 @@
         (construct)
         (gen-statement (fourth (tree-content t)))
         entry))
-    (let ([entry (gen-block (tree-content syntax-tree))])
+    (let ([entry (gen-block (tree-content syntax-tree) '())])
       ; 设置未知地址的 call
       (for-each
        (lambda (i)

@@ -41,10 +41,10 @@
               (lambda (x)
                 (match (get-type x env)
                   ['real (return 'real)]
-                  ['unknown (set! unknown? #t)]
+                  ['var (set! unknown? #t)]
                   [_ (void)]))
               (tree-content t))
-             (if unknown? 'unknown 'int)))))           
+             (if unknown? 'var 'int)))))           
       ; get the type of expression tree
       (if (tree? exp)
           (match (tree-type exp)              
@@ -73,7 +73,7 @@
            (let ([real-id (get-real-id (id-name t) env)])
              (match (get-type t env)
                [(or 'int 'real) (rename! t real-id) #t]
-               ['unknown (rename! t real-id) #t]
+               ['var (rename! t real-id) #t]
                [#f (printf "ARITH ERROR: Unknown id '~a', ~a.~%"
                            (id-name t) (id-pos t))
                    #f]
@@ -93,7 +93,7 @@
            (let ([real-id (get-real-id (id-name t) env)])
              (match (get-type t env)
                ['bool (rename! t real-id) #t]
-               ['unknown (rename! t real-id) #t]
+               ['var (rename! t real-id) #t]
                [#f (printf "CONDITION ERROR: Unknown id '~a', ~a.~%"
                            (id-name t) (id-pos t))
                    #f]
@@ -108,7 +108,7 @@
              (when (and (check-exp (first (tree-content t)))
                         (check-exp (second (tree-content t))))
                (cond [(eq? left-type right-type) #t]
-                     [(or (eq? left-type 'unknown) (eq? right-type 'unknown))
+                     [(or (eq? left-type 'var) (eq? right-type 'var))
                       #t]
                      [(or (and (eq? left-type 'int) (eq? right-type 'real))
                           (and (eq? left-type 'real) (eq? right-type 'int)))
@@ -124,7 +124,7 @@
            (let ([real-id (get-real-id (id-name t) env)])
              (match (get-type t env)
                ['string (rename! t real-id) #t]
-               ['unknown (rename! t real-id) #t]
+               ['var (rename! t real-id) #t]
                [#f (printf "STRING ERROR: Unknown id '~a', ~a.~%"
                            (id-name t) (id-pos t))
                    #f]
@@ -205,32 +205,41 @@
     
     (define (add-var t env)
       (when (not (null? t))
-        (for-each
-         (lambda (x)
-           (if (tree? x)
-               (let* ([id (tree-content x)]
-                      [dec-id (decorate-name id env)])
-                 (check-dup-id x env)
-                 (env-insert! id env)
-                 (rename! x dec-id)
-                 (st-insert! dec-id 'type (make-type-info 'atom 'unknown #f)))
-               (let* ([id (tree-content (car x))]
-                      [dec-id (decorate-name id env)])
-                 (check-dup-id (car x) env)
-                 (env-insert! id env)
-                 (rename! (car x) dec-id)
-                 ; check type and value of initial expression
-                 (if (tree? (second x)) ; it's initial expression
-                     (let ([check-exp ((make-checker env) 'exp)])
-                       (when (check-exp (second x))
-                         (st-insert! dec-id 'type
-                                     (make-type-info
-                                      'atom
-                                      (get-type (second x) env) #f))))
-                     (st-insert! dec-id 'type
-                                 (make-type-info 'atom
-                                                 (second x) #f))))))
-         (tree-content t))))
+        (add-var-list (tree-content t) env)))
+    
+    (define (add-var-list l env)
+      (for-each
+       (lambda (x)
+         (if (tree? x)
+             (let* ([id (tree-content x)]
+                    [dec-id (decorate-name id env)])
+               (check-dup-id x env)
+               (env-insert! id env)
+               (rename! x dec-id)
+               (st-insert! dec-id 'type (make-type-info 'atom 'var #f)))
+             (let* ([id (tree-content (car x))]
+                    [dec-id (decorate-name id env)])
+               (check-dup-id (car x) env)
+               (env-insert! id env)
+               (rename! (car x) dec-id)
+               ; check type and value of initial expression
+               (if (tree? (second x)) ; it's initial expression
+                   (let ([check-exp ((make-checker env) 'exp)])
+                     (when (check-exp (second x))
+                       (st-insert! dec-id 'type
+                                   (make-type-info
+                                    'atom
+                                    (get-type (second x) env) #f))))
+                   (st-insert! dec-id 'type
+                               (make-type-info 'atom
+                                               (second x) #f))))))
+       l))
+  
+    (define (arg-list l)
+      (map
+       (lambda (x)
+         (if (tree? x) 'var (second x)))
+       l))
     
     (define (add-proc tlist env)
       ; 只是添加 proc 到环境中
@@ -242,7 +251,10 @@
                   [dec-id (decorate-name proc-name env)])
              (check-dup-id (car (tree-content x)) env)
              (env-insert! proc-name env)
-             (st-insert! dec-id 'type (make-type-info 'proc '() '#t))))
+             (st-insert! dec-id 'type
+                         (make-type-info 'proc
+                                         (arg-list (second (tree-content x)))
+                                         '#t))))
          tlist)))
     
     (define (check-proc t env)
@@ -252,8 +264,9 @@
         (set-tree-content! t
                            (cons (decorate-name proc-name env)
                                  (rest (tree-content t))))
-        ;(st-insert! (decorate-name proc-name env) 'env env)))
-        (check-block (second (tree-content t)) new-env)))
+        ; add formal arguments
+        (add-var-list (second (tree-content t)) new-env)
+        (check-block (third (tree-content t)) new-env)))
     
     
     (define (get-real-id id env)
@@ -296,16 +309,16 @@
                    (let ([exp-type (get-type exp-tree env)]
                          [id-type (type-info-value (st-lookup real-id 'type))])
                      ; holy shit...
-                     (if (or (eq? id-type 'unknown)
-                             (eq? exp-type 'unknown)
+                     (if (or (eq? id-type 'var)
+                             (eq? exp-type 'var)
                              (eq? exp-type id-type)
                              (and (eq? id-type 'int) (eq? exp-type 'real))
                              (and (eq? id-type 'real) (eq? exp-type 'int)))
                          (begin 
                            ; warn if set real number to integer variable
-                           (when (and (eq? id-type 'int) (eq? exp-type 'real))
-                             (printf "ASSIGN WARNING: set 'real' to a 'int' ~a, ~a.~%"
-                                    (id-name id-tree) (id-pos id-tree)))
+                           ;(when (and (eq? id-type 'int) (eq? exp-type 'real))
+                           ;  (printf "ASSIGN WARNING: set 'real' to a 'int' ~a, ~a.~%"
+                           ;          (id-name id-tree) (id-pos id-tree)))
                            (rename! id-tree real-id)
                            #t)
                          (begin (printf "ASSIGN ERROR: Cannot assign ~a to ~a '~a', ~a.~%"
@@ -315,19 +328,48 @@
         (list-and (map check (tree-content t))))
       
       (define (check-call t)
-        (let* ([id-tree (tree-content t)]
-               [real-id (get-real-id (id-name id-tree) env)])
+        (let* ([id-tree (car (tree-content t))]
+               [real-id (get-real-id (id-name id-tree) env)]
+               [result #t])
           (cond [(not real-id)
                  (printf "CALL ERROR: Unknwon id '~a', ~a.~%"
                          (id-name id-tree) (id-pos id-tree))
-                 #f]
+                 (set! result #f)]
                 [(not (eq? 'proc (type-info-type (st-lookup real-id 'type))))
                  (printf "CALL ERROR: '~a' is not a procedure, ~a.~%"
                          (id-name id-tree) (id-pos id-tree))
-                 #f]
+                 (set! result #f)]
                 [else
-                 (rename! (tree-content t) real-id)
-                 #t])))
+                 (let ([args (second (tree-content t))]
+                       [proc-arg (type-info-value (st-lookup real-id 'type))])
+                 (if (not (= (length args) (length proc-arg)))
+                     (begin
+                       (printf "CALL ERROR: '~a' expected ~a args, given ~a, ~a.~%"
+                               real-id
+                               (length proc-arg) (length args)
+                               (id-pos id-tree))
+                       (set! result #f))
+                     (for-each
+                      (lambda (real-arg form-arg)
+                        (if (not (check-exp real-arg))
+                            (printf "CALL ERROR: '~a', not an invalid expression, ~a.~%"
+                                    real-id (id-pos real-arg))
+                            (let ([arg-ty (get-type real-arg env)])
+                              (when (not (eq? arg-ty form-arg))
+                                (when (not (and (eq? arg-ty 'var)
+                                                (eq? form-arg 'var)))
+                                  (when (not (or (and (eq? arg-ty 'int)
+                                                      (eq? form-arg 'real))
+                                                 (and (eq? arg-ty 'real)
+                                                      (eq? form-arg 'int))))
+                                    (printf "CALL ERROR: '~a' expect ~a, given ~a, ~a.~%"
+                                            real-id form-arg arg-ty (id-pos id-tree))
+                                    (set! result #f)))))))
+                      args proc-arg)))])
+          (when result
+            (rename! (first (tree-content t)) real-id))
+          result))
+                 
       
       (define (check-read t)
         (let* ([id-tree (tree-content t)]

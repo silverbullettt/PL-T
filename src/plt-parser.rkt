@@ -145,11 +145,13 @@
           [(or '\, '\)) id-tree]
           [_ (report-error 'procedure '(\, \) :) (get-token!))])))
     (define (iter)
-      (let ([id (decl)])
-        (match (get-token-type)
-          ['\, (get-token!) (cons id (iter))]
-          ['\) (list id)]
-          [_ (report-error 'procedure '(\, \)) (get-token!))])))
+      (if (eq? (get-token-type) '\))
+          '()
+          (let ([id (decl)])
+            (match (get-token-type)
+              ['\, (get-token!) (cons id (iter))]
+              ['\) (list id)]
+              [_ (report-error 'procedure '(\, \)) (get-token!))]))))
     (let* ([proc-tok (match! 'proc)] [id-tok (match! 'ident)]
            [lbrac (match! '\()] [var-list (iter)] [rbrac (match! '\))]
            [blk (block)]
@@ -200,7 +202,9 @@
           ['\, (match! '\,) (cons expr (iter))]
           [(or '\; '\) 'end) (list expr)]
           [_ (report-error 'var '(\, \; \)) (get-token!))])))
-    (iter))
+    (if (member (get-token-type) '(\; \) end))
+        '()
+        (iter)))
   
   (define (statement-call)
     (let* ([call-tok (match! 'call)]

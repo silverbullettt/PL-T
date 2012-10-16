@@ -8,14 +8,14 @@
 ; (set e var)          -> set the value of var to e
 ; (call entry)         -> call dest entry, and push pc + 1 to stack
 ; (return)             -> return the addr which in the top of stack
+; (push e)
+; (pop var)
 ; (if-false e addr)    -> if e is #f, go to addr
 ; (goto addr)          -> go to addr directly
 ; (arth-op args var)   -> set the value of e1 arth-op e2 to var
 ; (comp-op args var)   -> set the value of e1 cond-op e2 to var
 ; (logic-op e1 e2 var) -> set the value of e1 logic-op e2 to var
 ; (str-op args var)    -> set...
-; (push e)
-; (pop var)
 ; (print e)            -> print the value of e to screen
 
 ; 一些操作直接对应类型信息
@@ -25,7 +25,10 @@
 ; set      => type of var
 
 (define (PL/T-machine code-list entry)
-  (define (exec pc stack env)
+  (define (exec pc      ; program counter
+                add-stk ; address stack
+                arg-stk ; argument stack
+                env)
     ; this environment is a little different with
     ; the environment in PL/T-analyzer, this env is a memory model
         
@@ -160,6 +163,13 @@
          (set-value! var (apply format
                                 (map get-value args)))]))
     
+    (define (push exp)
+      (set! arg-stk (cons (get-value exp) arg-stk)))
+    
+    (define (pop var)
+      (set-value! var (car arg-stk))
+      (set! arg-stk (cdr arg-stk)))
+    
     (when (< pc (vector-length code-list))
       (call/cc
        (lambda (ret)
@@ -171,25 +181,28 @@
              ['read (read-value (second inst))]
              ['print (print (get-value (second inst)))]
              ; jump instructions
-             ['goto (ret (exec (second inst) stack env))]
+             ['goto (ret (exec (second inst) add-stk arg-stk env))]
              ['if-false (when (not (get-value (second inst)))
-                          (ret (exec (third inst) stack env)))]
+                          (ret (exec (third inst) add-stk arg-stk env)))]
              ; each CALL will create a new env
              ['call (ret (exec
                           (second inst)
-                          (cons (add1 pc) stack)
+                          (cons (add1 pc) add-stk)
+                          arg-stk
                           (make-env "" (make-hash) env)))]
              ; each return will delete a env
-             ['return (ret (exec (car stack)
-                                 (cdr stack)
+             ['return (ret (exec (car add-stk)
+                                 (cdr add-stk)
+                                 arg-stk
                                  (env-parent env)))]
-             ;['push]
-             ;['pop]
+             ; argument instructions
+             ['push (apply push (cdr inst))]
+             ['pop (apply pop (cdr inst))]
              ; computing instructions
              [(? arith-op?) (apply arith inst)]
              [(? comp-op?) (apply comp-op inst)]
              [(? logic-op?) (apply logic-op inst)]
              [(? str-op?) (apply str-op inst)]
              [_ (error "我次奥 -- unknown instruction")])
-           (exec (add1 pc) stack env))))))
-  (exec entry '() (make-env "" (make-hash) #f)))
+           (exec (add1 pc) add-stk arg-stk env))))))
+  (exec entry '() '() (make-env "" (make-hash) #f)))
