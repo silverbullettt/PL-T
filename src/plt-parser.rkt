@@ -10,6 +10,12 @@
 ;         [ var-decl ]
 ;         { "procedure" ident "(" var-list ")" block ";" } statement.
 ;
+; proc = "procedure" ident "(" decl-list ")" -> "(" type-list ")" block.
+;
+; type = ["int"|"real"|"bool"|"string"|"var"].
+;
+; type-list = type { "," type }.
+;
 ; var-decl = "var" decl-list ";"
 ;
 ; decl-list = ident [":" type|"(" expression ")"] 
@@ -17,6 +23,7 @@
 ;
 ; statement = [ var-list ":=" exp-list | 
 ;             "call" ident "(" exp-list ")" |
+;             "return" exp-list |
 ;             "begin" statement {";" statement } "end" |
 ;             "if" condition "then" statement |
 ;             "while" condition "do" statement |
@@ -36,7 +43,7 @@
 ; str        = ident | string | "(" str-op string { string } ")".
 ;
 ; expression = condition | arithmetic | string.
-
+;
 
 (define (PL/T-parser tokens)
   
@@ -139,30 +146,50 @@
     (define (decl)
       (let* ([id (match! 'ident)] [id-tree (make-id id)])
         (match (get-token-type)
-          [': (match! ':) (list id-tree (string->symbol
-                                         (string-downcase
-                                          (second (match! 'type)))))]
+          [': (match! ':)
+              (if (or (eq? (get-token-type) 'var)
+                      (eq? (get-token-type) 'type))
+                  (list id-tree (string->symbol
+                                 (string-downcase
+                                  (second (get-token!)))))
+                  (report-error 'procedure '(type var) (get-token!)))]
           [(or '\, '\)) id-tree]
           [_ (report-error 'procedure '(\, \) :) (get-token!))])))
-    (define (iter)
+    (define (var-iter)
       (if (eq? (get-token-type) '\))
           '()
           (let ([id (decl)])
             (match (get-token-type)
-              ['\, (get-token!) (cons id (iter))]
+              ['\, (get-token!) (cons id (var-iter))]
               ['\) (list id)]
               [_ (report-error 'procedure '(\, \)) (get-token!))]))))
+    (define (type-iter)
+      (cond [(eq? (get-token-type) '\)) '()]
+            [(or (eq? (get-token-type) 'var)
+                 (eq? (get-token-type) 'type))
+             (let ([type (string->symbol
+                          (string-downcase
+                           (second (get-token!))))])
+               (match (get-token-type)
+                 ['\, (get-token!) (cons type (type-iter))]
+                 ['\) (list type)]
+                 [_ (report-error 'procedure '(\, \)) (get-token!))]))]
+            [else (report-error 'procedure '(type var) (get-token!))]))
+
     (let* ([proc-tok (match! 'proc)] [id-tok (match! 'ident)]
-           [lbrac (match! '\()] [var-list (iter)] [rbrac (match! '\))]
+           [lb1 (match! '\()] [var-list (var-iter)] [rb1 (match! '\))]
+           [arror (match! '->)]
+           [lb2 (match! '\()] [type-list (type-iter)] [rb2 (match! '\))]
            [blk (block)]
            [semi2 (match! '\;)])
-      (new-tree 'proc (list (make-id id-tok) var-list blk))))
+      (new-tree 'proc (list (make-id id-tok) (list var-list type-list) blk))))
   
   ; ========================= statement ===================
   (define (statement)
     (match (get-token-type)
       ['begin (statement-begin)]
       ['call (statement-call)]
+      ['return (statement-return)]
       ['read (statement-read)]
       ['print (statement-print)]
       ['if (statement-if)]
@@ -184,7 +211,7 @@
       (match! 'end)
       (new-tree 'begin stmts)))
   
-  (define (var-list)    
+  (define (var-list)
     (define (iter)
       (let ([id (make-id (match! 'ident))])
         (match (get-token-type)
@@ -194,8 +221,10 @@
     (iter))
   
   (define (exp-list)
-    ; exp-list 只在三个地方用到:assign, print, call
-    ; assign, print 以分号或 end 结束, call 以右括号结束
+    ; exp-list 在四个地方用到:assign, print, call, return
+    ; assign, print, return 以分号或 end 结束, call 以右括号结束
+    ; !!! call 的返回值可能不止一个, 所以 exp-list 里面有 call 的时候
+    ;     留给 analyzer 检查
     (define (iter)
       (let ([expr (exp)])
         (match (get-token-type)
@@ -212,32 +241,41 @@
            [lbrac (match! '\()]
            [exp-list (exp-list)]
            [rbrac (match! '\))])
-      (new-tree 'call (list (make-id id) exp-list))))
+      (new-tree 'call
+                (list (make-id id) exp-list)
+                (tok-pos call-tok))))
   
+  (define (statement-return)
+    (let* ([ret-tok (match! 'return)]
+           [expr-list (exp-list)])
+      (new-tree 'return expr-list (tok-pos ret-tok))))
+     
   (define (statement-read)
     (let* ([read-tok (match! 'read)] [id (match! 'ident)])
       (new-tree 'read (make-id id))))
   
   (define (statement-print)
-    (let* ([print-tok (match! 'print)] [exp-list (exp-list)])
-      (new-tree 'print exp-list)))
+    (let* ([print-tok (match! 'print)] [exps (exp-list)])
+      (new-tree 'print exps)))
   
   (define (statement-if)
-    (let* ([if-tok (match! 'if)] [condi (condition)]
-                                 [then-tok (match! 'then)] [stmt (statement)])
+    (let* ([if-tok (match! 'if)]
+           [condi (condition)]
+           [then-tok (match! 'then)]
+           [stmt (statement)])
       (new-tree 'if (list condi stmt))))
   
   (define (statement-while)
-    (let* ([while-tok (match! 'while)] [condi (condition)]
-                                       [do-tok (match! 'do)] [stmt (statement)])
+    (let* ([while-tok (match! 'while)]
+           [condi (condition)]
+           [do-tok (match! 'do)]
+           [stmt (statement)])
       (new-tree 'while (list condi stmt))))
   
+  ; 由于 call 的返回值可能不止1个,因此 assign 参数个数留给 analyzer 检查
   (define (statement-assign)
     (let* ([vars (var-list)] [ass (match! 'assign)] [exps (exp-list)])
-      (if (= (length vars) (length exps))
-          (new-tree 'assign (map list vars exps))
-          (error 'assign "var number (~a) is not equal exp number (~a), ~a"
-                 (length vars) (length exps) (id-pos (car vars))))))
+      (new-tree 'assign (list vars exps) (tok-pos ass))))
   
   ; ========================= expression ==================
   
@@ -246,6 +284,7 @@
         (make-const (get-token!))
         (report-error 'const-value '(int real bool string))))
   
+  ; !!! 当作为表达式的一部分时, call 相应的函数只能返回一个值
   (define (condition)
     (define (iter)
       (if (eq? (get-token-type) '\))
@@ -274,6 +313,7 @@
                   result)
                 (new-tree op (iter) (tok-pos op-tok))))]           
          [_ (report-error 'condition (append *comp-op* *logic-op* '(not)))])]
+      ['call (statement-call)]
       [_ (report-error 'condition '(true false ident \())]))
   
   (define (arithmetic)
@@ -291,6 +331,7 @@
                   [op (string->symbol (tok-content op-tok))])
              (new-tree op (iter) (tok-pos op-tok)))
            (report-error 'arithmetic *arith-op*))]
+      ['call (statement-call)]
       [_ (report-error 'arithmetic '(number ident \())]))
   
   (define (str)
@@ -318,6 +359,7 @@
                   (new-tree '<- (cons str (<-iter)) (tok-pos op-tok)))
                 (report-error 'str '(string ident)))]
            [_ (report-error 'str '(@ <-))]))]
+      ['call (statement-call)]
       [_ (report-error 'str *str-op*)]))
   
   (define (exp)
@@ -332,6 +374,7 @@
          [(or 'comp-op 'logic-op) (condition)]
          ['str-op (str)]
          [_ (report-error 'exp '(arith-op condition-op str-op))])]
+      ['call (statement-call)]
       [_ (report-error 'exp '(int real bool string ident \())]))
   
   (if (null? tokens)
@@ -377,3 +420,23 @@
                            [else (printf " ~a" (to-string x))]))
                    (tree-content t))])
   (printf "]"))
+
+; ============================ for test =======================================
+(require rnrs/io/ports-6)
+(require "PLT-scanner.rkt"
+         "define.rkt"
+         "util/table.rkt")
+
+(define (read-string-from-file filename)
+  ; source code must be wrotten by latin-1-codec
+  (get-string-all
+   (transcoded-port (open-file-input-port filename)
+                    (make-transcoder (latin-1-codec)))))
+
+(define (parse [filename "../sample/test.pl"])
+  (PL/T-parser
+   (PL/T-scanner
+    (read-string-from-file filename))))
+
+(print-tree (parse "../sample/test_call.pl"))
+(newline)

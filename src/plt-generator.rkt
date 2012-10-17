@@ -44,11 +44,32 @@
         ['string (tree-content tok)]
         [x (error 'const-tok-value "Unknown type '~a'" x)]))
     
+    (define (gen-exp-list exp-list)
+      (flatten (map
+                (lambda (x)
+                  (if (eq? (tree-type x) 'call)
+                      (get-call-retv x)
+                      (gen-exp x)))
+                exp-list)))
+    
+    (define (get-ret-type-by-name name)
+      (second (type-info-value (lookup name 'type))))
+    
+    (define (get-call-retv t)
+      (gen-call t)
+      (map
+       (lambda (retv)
+         (let ([temp (new-temp)])
+           (add-code! (list 'pop temp))
+           temp))
+       (get-ret-type-by-name (id-name (first (tree-content t))))))
+    
     (define (gen-exp t)
       (if (temp? t) t
           (match (tree-type t)
             [(? const?) (const-tok-value t)]
             ['ident t] ; position
+            ['call (car (get-call-retv t))]
             [(? arith-op?)
              (let ([temp (new-temp)])
                (add-code!
@@ -64,6 +85,7 @@
       (match (tree-type t)
         ['bool (const-tok-value t)]
         ['ident t]
+        ['call (car (get-call-retv t))]
         [(? comp-op?)
              (let* ([left (gen-exp (first (tree-content t)))]
                     [right (gen-exp (second (tree-content t)))]
@@ -82,12 +104,14 @@
             (list (tree-type t)
                   (map gen-exp (tree-content t))
                   temp))
-           temp)]))
+           temp)]
+        [type (error 'cond "Unknown type '~a'~%" type)]))
     
     (define (gen-str t)
       (match (tree-type t)
         ['string (const-tok-value t)]
         ['ident t]
+        ['call (car (get-call-retv t))]
         ['@
          (let ([temp (new-temp)])
            (add-code!
@@ -101,7 +125,8 @@
                   (cons str
                         (map gen-exp (cdr (tree-content t))))
                   temp))
-           temp)]))
+           temp)]
+        [type (error 'str "Unknown type '~a'~%" type)]))
     
     ; each gen-xxx statement return the end index of itself
     (define (gen-statement t)
@@ -110,6 +135,7 @@
           ['begin (gen-begin t)]
           ['assign (gen-assign t)]        
           ['call (gen-call t)]
+          ['return (gen-return t)]
           ['read (gen-read t)]
           ['print (gen-print t)]
           ['if (gen-if t)]
@@ -124,31 +150,37 @@
     (define (gen-call t)
       (for-each
        (lambda (arg)
-         (add-code! (list 'push (gen-exp arg))))
-       (reverse (second (tree-content t))))
+         (add-code! (list 'push arg)))
+       (reverse (gen-exp-list (second (tree-content t)))))
       (set! call-list
             (cons (add-code!
                    (list 'call
                          (tree-content (first (tree-content t)))))
                   call-list)))
     
+    (define (gen-return t)
+      (for-each
+       (lambda (tmp)
+         (add-code! (list 'push tmp)))
+       (reverse (gen-exp-list (tree-content t))))
+      (add-code! (list 'return)))
+    
     (define (gen-read t)
       (add-code! (list 'read (tree-content t))))
     
     (define (gen-print t)
       (for-each (lambda (e)
-                  (add-code! (list 'print (gen-exp e)))
+                  (add-code! (list 'print e))
                   (add-code! (list 'print " ")))
-                (tree-content t))
+                (gen-exp-list (tree-content t)))
       (add-code! (list 'print "\n")))
     
     (define (gen-assign t)
       (for-each
-       (lambda (var-exp)
-         (let ([id (first var-exp)]
-               [e (gen-exp (second var-exp))])
-           (add-code! (list 'set e id))))
-       (tree-content t)))
+       (lambda (var exp)
+         (add-code! (list 'set var exp)))
+       (first (tree-content t))
+       (gen-exp-list (second (tree-content t)))))
     
     (define (gen-if t)
       (let ([cond-res (gen-cond (first (tree-content t)))]
@@ -168,9 +200,10 @@
     
     (define (gen-proc t)
       (let ([entry (gen-block (third (tree-content t))
-                              (second (tree-content t)))])
+                              (caadr (tree-content t)))])
         (insert! (first (tree-content t)) 'entry entry)
         (add-code! (list 'return))
+        ;(printf "~a, ~a\n" (first (tree-content t)) entry)
         entry))
     
     (define (gen-block t args)
@@ -236,3 +269,41 @@
                                 tree->string
                                 (vector-ref code-list index)))
       (f (add1 index)))))
+
+; ============================ for test =======================================
+
+(require rnrs/io/ports-6)
+(require "PLT-scanner.rkt"
+         "PLT-parser.rkt"
+         "PLT-analyzer.rkt"
+         "define.rkt"
+         "util/table.rkt")
+
+(define (read-string-from-file filename)
+  ; source code must be wrotten by latin-1-codec
+  (get-string-all
+   (transcoded-port (open-file-input-port filename)
+                    (make-transcoder (latin-1-codec)))))
+
+(define (parse [filename "../sample/test.pl"])
+  (PL/T-parser
+   (PL/T-scanner
+    (read-string-from-file filename))))
+
+(define (analyse [filename "../sample/test.pl"])
+  (PL/T-analyzer
+   (PL/T-parser
+    (PL/T-scanner
+     (read-string-from-file filename)))))
+
+(print-tree (parse "../sample/test_call.pl"))
+
+(define t (parse "../sample/test_call.pl"))
+(print-tree t)
+(define st (PL/T-analyzer t))
+
+(define code (PL/T-generator t st))
+(print-code (car code))
+;(PL/T-machine (first code) (second code))
+
+;(exec "../sample/test.pl")

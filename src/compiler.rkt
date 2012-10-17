@@ -52,13 +52,12 @@
 
 (print-tree (parse "../sample/test_call.pl"))
 
-(define t (parse))
+(define t (parse "../sample/test_call.pl"))
 (print-tree t)
 (define st (PL/T-analyzer t))
-(define (type->list t)
-  (list (type-info-type t) (type-info-value t)))
+
 (define code (PL/T-generator t st))
 (print-code (car code))
 ;(PL/T-machine (first code) (second code))
 
-;(exec "../sample/test.pl")
+(exec "../sample/test_call.pl")

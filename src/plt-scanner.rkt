@@ -17,7 +17,7 @@
      ("=|#|<|<=|>|>=" comp-op)     ; compare operator
      ("AND|OR|NOT" logic-op)       ; logic operator
      ("@|<-" str-op)               ; string operator
-     ("NULL" null) ; ("NULL?" null?)
+     ("NULL" null)
      
      ("~(" \() (")" \))
      ; ("~[" \[) ("]" \]) ; for array

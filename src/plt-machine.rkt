@@ -29,9 +29,10 @@
                 add-stk ; address stack
                 arg-stk ; argument stack
                 env)
+    
     ; this environment is a little different with
     ; the environment in PL/T-analyzer, this env is a memory model
-        
+    
     (define (get-entity name [env env])
       (cond [(not env) (error 'gen-entity "我次奥 -- unknown variable '~a'" name)]
             [(hash-has-key? (env-st env) name)
@@ -47,13 +48,38 @@
       (type-info-value (entity-type e)))
     
     (define (get-type e [env env])
+      ;(printf "*** get-type: ~a\n" e)
       (match e
         [(? integer?) 'int]
         [(? real?) 'real]
         [(? boolean?) 'bool]
-        [(? string?) 'string] ; to do...
+        [(? string?) 'string]
         [(? tree?)
-         (get-entity-type (get-entity (id-name e) env))]))
+         (get-entity-type (get-entity (id-name e) env))]
+        [(? null?)
+         (dump)
+         (error 'get-type "NULL still not implemented")]
+        [x (error 'get-type "Unknown type ~a" x)]))
+    
+    (define (dump)
+      ; for debug
+      (define (print-env env)
+        (when env
+          (printf "proc-name: ~a~%" (env-name env))
+          (hash-for-each
+           (env-st env)
+           (lambda (k v)
+             (printf "~a: ~a ~a~%"
+                     k
+                     (type-info-value (entity-type v))
+                     (entity-value v))))
+          (print-env (env-parent env))))
+      (printf "----------------------------------\n")
+      (printf "pc: ~a\n" pc)
+      (printf "address stack: ~a\n" add-stk)
+      (printf "arguments stack: ~a\n" arg-stk)
+      (print-env env)
+      (printf "----------------------------------\n"))
     
     (define (set-type! name type [env env])
       (if (hash-has-key? (env-st env) name)
@@ -63,15 +89,18 @@
           (set-type! name type (env-parent env))))
     
     (define (set-value! var val [env env])
+      ;(printf "### var: ")
+      ;(print-tree var)
+      ;(printf ", val: ~a ###\n" val)
       (if (hash-has-key? (env-st env) (id-name var))
           (let ([var-ent (hash-ref (env-st env) (id-name var))]
                 [left-type (get-type var)]
                 [right-type (get-type val)])
             ; check type information dynamically
-            (cond [(or (eq? right-type 'unknown) (null? val))
+            (cond [(or (eq? right-type 'var) (null? val))
                    (error 'ASSIGN-ERROR "Unknown value, L~a:~a.~%"
                           (car (id-pos var) (cdr (id-pos var))))]
-                  [(eq? left-type 'unknown)
+                  [(eq? left-type 'var)
                    (set-type! (id-name var) right-type)
                    (set-entity-value! var-ent val)]
                   [(eq? left-type right-type)
@@ -88,12 +117,12 @@
                           (car (id-pos var)) (cdr (id-pos var)))]))
           (set-value! var val (env-parent env))))
     
-    (define (declare name [type (make-type-info #f 'unknown #f)] [value '()])
+    (define (declare name [type (make-type-info 'atom 'var #f)] [value null])
       (hash-set! (env-st env)
                  name
                  (make-entity name type value)))
-    ; 注意 set 指令和 set-value! 函数的 src 和 dest 是相反的= =
-    (define (set src dest) (set-value! dest (get-value src)))
+    
+    (define (set dest src) (set-value! dest (get-value src)))
     
     (define (read-value var)
       (let ([val (read)])
@@ -115,10 +144,10 @@
     (define (comp-op op e1 e2 var)
       (define (check-type e1 e2)
         (let ([ty1 (get-type e1)] [ty2 (get-type e2)])
-          (cond [(eq? ty1 'unknown)
+          (cond [(eq? ty1 'var)
                  (error 'TYPE-ERROR "Unknown value: '~a', ~a~%"
                         (id-name e1) (id-pos e1))]
-                [(eq? ty2 'unknown)
+                [(eq? ty2 'var)
                  (error 'TYPE-ERROR "Unknown value: '~a', ~a~%"
                         (id-name e2) (id-pos e2))]
                 [(eq? ty1 ty2) ty1]
@@ -156,7 +185,7 @@
         ['<-
          (for-each
           (lambda (x)
-            (when (eq? (get-type x) 'unknown)
+            (when (eq? (get-type x) 'var)
               (error 'STR-OP "Unknown value '~a', ~a~%"
                      (id-name x) (id-pos x))))
           args)
@@ -171,6 +200,7 @@
       (set! arg-stk (cdr arg-stk)))
     
     (when (< pc (vector-length code-list))
+      ;(printf "pc: ~a, arguments stack: ~a\n" pc arg-stk)
       (call/cc
        (lambda (ret)
          (let ([inst (vector-ref code-list pc)])
