@@ -8,7 +8,7 @@
 
 (define-struct env (name st parent) #:mutable)
 (define-struct type-info (type value const?) #:mutable)
-; type:  atom, procedure, (array)
+; type:  atom, procedure, (array, struct)
 ; value: int, real, bool, string <- atom
 ;                      type-info <- array
 ;     (list-of-args list-of-ret) <- procedure

@@ -19,10 +19,24 @@ PROCEDURE foo() -> (INT)
 PROCEDURE foo1() -> (VAR)
  RETURN 456;
 
+PROCEDURE recur(x:INT) -> (INT)
+ BEGIN
+  IF (>= x 10) THEN RETURN x;
+  PRINT (<- "recur: ~a" x);
+  RETURN CALL recur((+ x 1))
+ END;
+ 
+PROCEDURE max(x:VAR, y:VAR, less:(VAR, VAR)->(BOOL)) -> (VAR)
+ BEGIN
+  IF CALL less(x, y) THEN RETURN y;
+  RETURN x
+ END;
+
 BEGIN
  x1, x2 := CALL divide((+ CALL middle(23, CALL foo()) 100), 17);
  PRINT x1, x2;
  PRINT 12, (+ 100 CALL foo1());
  x1 := CALL middle(CALL divide(178, 23));
- x2 := (+ 100 CALL foo())
+ x2 := (+ 100 CALL foo());
+ PRINT CALL recur(0)
 END.

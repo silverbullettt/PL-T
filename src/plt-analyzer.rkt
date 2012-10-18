@@ -22,15 +22,17 @@
         [(or 'int 'real) (string->number (tree-content tok))]
         ['bool (string=? (tree-content tok) "#t")]
         ['string (tree-content tok)]
+        ['null null]
         [x (error 'const-tok-value "Unknown type '~a'" x)]))
     (define (const-type x)
       (cond [(integer? x) 'int]
             [(real? x) 'real]
             [(boolean? x) 'bool]
             [(string? x) 'string]
+            [(null? x) 'null]
             [else (error 'const-type
                          "Type of '~a' is unknown" x)])) 
-    (define const? (member-tester '(int real bool string)))
+    (define const? (member-tester '(int real bool string null)))
     
     (define (get-type exp env) ; return symbol directly
       (define (get-arith-type t)
@@ -86,6 +88,8 @@
                           (id-name t) x 'number (id-pos t))
                   #f]))]
           ['call (check-call-exp t 'arith)]
+          ['null (printf "ARITH ERROR: NULL can not be used for computing, ~a.~%"
+                         (tree-pos t))]
           [(? arith-op?) 
            (list-and
             (map check-arith (tree-content t)))]
@@ -107,6 +111,8 @@
                              (id-name t) type 'bool (id-pos t))
                      #f]))]
           ['call (check-call-exp t 'cond)]
+          ['null (printf "CONDITION ERROR: NULL can not be used for condition, ~a.~%"
+                         (tree-pos t))]
           ['not (check-exp (tree-content t))]
           [(? logic-op?) (list-and (map check-exp (tree-content t)))]
           [(? comp-op?)
@@ -116,6 +122,8 @@
                         (check-exp (second (tree-content t))))
                (cond [(eq? left-type right-type) #t]
                      [(or (eq? left-type 'var) (eq? right-type 'var))
+                      #t]
+                     [(or (eq? left-type 'null) (eq? right-type 'null))
                       #t]
                      [(or (and (eq? left-type 'int) (eq? right-type 'real))
                           (and (eq? left-type 'real) (eq? right-type 'int)))
@@ -256,6 +264,8 @@
                (lambda (stmt) (when (has-return? stmt) (ret #t)))
                (tree-content t))
               #f))]
+          ['if (has-return? (second (tree-content t)))]
+          ['while (has-return? (second (tree-content t)))]
           [_ #f]))
       ; modify syntax-tree here!
       ; modify id to decorate name of variables, constants and procedures
@@ -405,6 +415,7 @@
       
       (define (match-exp-type? ty1 ty2)
         (cond [(eq? ty1 ty2) #t]
+              [(eq? ty2 'null) #t]
               [(or (eq? ty1 'var) (eq? ty2 'var)) #t]
               [(or (and (eq? ty1 'int) (eq? ty2 'real))
                    (and (eq? ty1 'real) (eq? ty2 'int))) #t]
@@ -585,12 +596,12 @@
         #f)))
 
 (define (print-env env)
-        (when env
-          (printf "~a~%" (env-name env))
-          (hash-for-each (env-st env)
-                         (lambda (k v)
-                           (printf "~a: ~a~%" k v)))
-          (print-env (env-parent env))))
+  (when env
+    (printf "~a~%" (env-name env))
+    (hash-for-each (env-st env)
+                   (lambda (k v)
+                     (printf "~a: ~a~%" k v)))
+    (print-env (env-parent env))))
 
 (define (print-st st)
   (define (type->string t)
@@ -617,12 +628,12 @@
    (transcoded-port (open-file-input-port filename)
                     (make-transcoder (latin-1-codec)))))
 
-(define (parse [filename "../sample/test_call.pl"])
+(define (parse [filename "../sample/test_null.pl"])
   (PL/T-parser
    (PL/T-scanner
     (read-string-from-file filename))))
 
-(define (analyze [filename "../sample/test_call.pl"])
+(define (analyze [filename "../sample/test_null.pl"])
   (PL/T-analyzer (parse filename)))
 
 (define t (parse))

@@ -60,4 +60,4 @@
 (print-code (car code))
 ;(PL/T-machine (first code) (second code))
 
-(exec "../sample/test_call.pl")
+(exec "../sample/test_null.pl")

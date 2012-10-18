@@ -34,15 +34,17 @@
 ; exp-list = expression { , expression }
 ;
 ; condition = ident | bool
-;             "(" comp-op arithmetic arithmetic ")" |
-;             "(" "not" condition ")" | "(" ["and"|"or"] condition { condition } ")".
+;             "(" comp-op exp exp ")" |
+;             "(" "not" condition ")" |
+;             "(" ["and"|"or"] condition { condition } ")".
 ;
 ; arithmetic = ident | number |
 ;              "(" arith-op arithmetic { arithmetic } ")".
 ;
 ; str        = ident | string | "(" str-op string { string } ")".
 ;
-; expression = condition | arithmetic | string.
+; expression = condition | arithmetic | string | null |
+;              "call" ident "(" exp-list ")".
 ;
 
 (define (PL/T-parser tokens)
@@ -80,6 +82,7 @@
   (define (make-id tok)
     (new-tree 'ident (tok-content tok) (tok-pos tok)))
   (define (make-const tok)
+    ; 语法分析不对常量做任何转换
     (new-tree (tok-type tok) (tok-content tok) (tok-pos tok)))
   (define (report-error type expected [tok (get-token)])
     (error 'PL/0-parser
@@ -196,7 +199,12 @@
       ['while (statement-while)]
       ['ident (statement-assign)]
       ['\. (new-tree 'statement '())]
-      [_ (report-error 'statement)]))
+      [_ (report-error 'statement
+                       '(begin end
+                         call return
+                         if then while do
+                         ident
+                         read print))]))
   
   (define (statement-begin)
     (define (iter)
@@ -302,7 +310,17 @@
                  [l-exp (exp)]
                  [r-exp (exp)])
             (match! '\))
-            (new-tree op (list l-exp r-exp) (tok-pos op-tok)))]
+            ; null could only be used for equal compare
+            (case op
+              [(= \#) (new-tree op (list l-exp r-exp) (tok-pos op-tok))]
+              [else
+               (if (or (eq? (tree-type l-exp) 'null)
+                       (eq? (tree-type r-exp) 'null))
+                   (error
+                    'compare
+                    "NULL could only be used for compare equivanlence, ~a."
+                    (tok-pos op-tok))
+                   (new-tree op (list l-exp r-exp) (tok-pos op-tok)))]))]
          ['logic-op
           (let* ([op-tok (get-token!)]
                  [op (string->symbol
@@ -368,6 +386,7 @@
       [(or 'int 'real) (arithmetic)]
       ['bool (condition)]
       ['string (str)]
+      ['null (make-const (get-token!))]
       ['\(
        (match (get-token2-type)
          ['arith-op (arithmetic)]
@@ -438,5 +457,5 @@
    (PL/T-scanner
     (read-string-from-file filename))))
 
-(print-tree (parse "../sample/test_call.pl"))
+(print-tree (parse "../sample/test_null.pl"))
 (newline)

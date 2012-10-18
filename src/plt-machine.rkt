@@ -41,6 +41,7 @@
     
     (define (get-value e [env env])
       (cond [(or (number? e) (boolean? e) (string? e)) e]
+            [(eq? e 'null) 'null]
             [(not env) (error 'gen-entity "我次奥 -- unknown variable '~a'" e)]
             [(tree? e) (entity-value (get-entity (id-name e) env))]))
     
@@ -54,12 +55,10 @@
         [(? real?) 'real]
         [(? boolean?) 'bool]
         [(? string?) 'string]
+        ['null 'null] ; null is just a value, it doesn't have type
         [(? tree?)
          (get-entity-type (get-entity (id-name e) env))]
-        [(? null?)
-         (dump)
-         (error 'get-type "NULL still not implemented")]
-        [x (error 'get-type "Unknown type ~a" x)]))
+        [x (dump) (error 'get-type "Unknown type ~a" x)]))
     
     (define (dump)
       ; for debug
@@ -74,12 +73,12 @@
                      (type-info-value (entity-type v))
                      (entity-value v))))
           (print-env (env-parent env))))
-      (printf "----------------------------------\n")
+      (printf "--------------- dump start ---------------\n")
       (printf "pc: ~a\n" pc)
       (printf "address stack: ~a\n" add-stk)
       (printf "arguments stack: ~a\n" arg-stk)
       (print-env env)
-      (printf "----------------------------------\n"))
+      (printf "---------------- dump end ----------------\n"))
     
     (define (set-type! name type [env env])
       (if (hash-has-key? (env-st env) name)
@@ -97,14 +96,17 @@
                 [left-type (get-type var)]
                 [right-type (get-type val)])
             ; check type information dynamically
-            (cond [(or (eq? right-type 'var) (null? val))
-                   (error 'ASSIGN-ERROR "Unknown value, L~a:~a.~%"
-                          (car (id-pos var) (cdr (id-pos var))))]
+            (cond ;[(and (eq? right-type 'var) (not (null? val)))
+                  ; (error 'ASSIGN-ERROR "Unknown value, L~a:~a.~%"
+                  ;        (car (id-pos var) (cdr (id-pos var))))]
                   [(eq? left-type 'var)
-                   (set-type! (id-name var) right-type)
+                   (when (not (eq? right-type 'null))
+                     (set-type! (id-name var) right-type))
                    (set-entity-value! var-ent val)]
                   [(eq? left-type right-type)
                    (set-entity-value! var-ent val)]
+                  [(eq? right-type 'null) ; null value can be set to any type
+                   (set-entity-value! var-ent 'null)]
                   ; convert from real to int
                   [(and (eq? left-type 'int) (eq? right-type 'real))
                    (set-entity-value! var-ent (exact-truncate val))]
@@ -117,7 +119,7 @@
                           (car (id-pos var)) (cdr (id-pos var)))]))
           (set-value! var val (env-parent env))))
     
-    (define (declare name [type (make-type-info 'atom 'var #f)] [value null])
+    (define (declare name [type (make-type-info 'atom 'var #f)] [value 'null])
       (hash-set! (env-st env)
                  name
                  (make-entity name type value)))
@@ -144,7 +146,9 @@
     (define (comp-op op e1 e2 var)
       (define (check-type e1 e2)
         (let ([ty1 (get-type e1)] [ty2 (get-type e2)])
-          (cond [(eq? ty1 'var)
+          (cond [(or (eq? ty1 'null) (eq? ty2 'null))
+                 'null]
+                [(eq? ty1 'var)
                  (error 'TYPE-ERROR "Unknown value: '~a', ~a~%"
                         (id-name e1) (id-pos e1))]
                 [(eq? ty2 'var)
@@ -158,9 +162,16 @@
                              ty1 ty2 (if (tree? e1) (id-pos e1) (id-pos e2)))])))
       (let* ([v1 (get-value e1)]
              [v2 (get-value e2)]
-             [ty (check-type e1 e2)]
-             [comparer (get-comparer ty op)])
-        (set-value! var (comparer v1 v2))))
+             [ty (check-type e1 e2)])
+        (if (eq? ty 'null)
+            (begin
+              ;(printf "   $$$ v1=~a, v2=~a $$$\n" v1 v2)
+              (match op
+                ['= (set-value! var (eq? v1 v2))]
+                ['\# (set-value! var (not (eq? v1 v2)))]
+                [x (error 'COMP-OP
+                          "x can not compare NULL value, ~a.~%" (id-pos e1))]))
+            (set-value! var ((get-comparer ty op) v1 v2)))))
     
     (define (logic-op op args var)
       (let ([result
@@ -236,3 +247,31 @@
              [_ (error "我次奥 -- unknown instruction")])
            (exec (add1 pc) add-stk arg-stk env))))))
   (exec entry '() '() (make-env "" (make-hash) #f)))
+
+; ============================ for test =======================================
+(require rnrs/io/ports-6)
+(require "PLT-scanner.rkt"
+         "PLT-parser.rkt"
+         "PLT-analyzer.rkt"
+         "PLT-generator.rkt"
+         "define.rkt"
+         "util/table.rkt")
+
+(define (read-string-from-file filename)
+  ; source code must be wrotten by latin-1-codec
+  (get-string-all
+   (transcoded-port (open-file-input-port filename)
+                    (make-transcoder (latin-1-codec)))))
+
+(define (exec [filename "../sample/test_null.pl"])
+  (let* ([t (PL/T-parser
+             (PL/T-scanner
+              (read-string-from-file filename)))]
+         [st (PL/T-analyzer t)])
+    (if st
+        (let ([code-ent (PL/T-generator t st)])
+          (PL/T-machine (first code-ent)
+                        (second code-ent)))
+        (error 'exec "Something wrong!"))))
+
+(exec)

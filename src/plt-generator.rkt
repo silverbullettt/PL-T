@@ -33,7 +33,7 @@
     (define (temp? t)
       (and (tree? t) (eq? (tree-type t) 'temp)))
     
-    (define const? (member-tester '(int real bool string)))
+    (define const? (member-tester '(int real bool string null)))
     (define (const-tok-value tok)
       (match (tree-type tok)
         [(or 'int 'real) (string->number (tree-content tok))]
@@ -42,6 +42,7 @@
                      val
                      (string=? "#t" val)))]
         ['string (tree-content tok)]
+        ['null 'null]
         [x (error 'const-tok-value "Unknown type '~a'" x)]))
     
     (define (gen-exp-list exp-list)
@@ -202,7 +203,8 @@
       (let ([entry (gen-block (third (tree-content t))
                               (caadr (tree-content t)))])
         (insert! (first (tree-content t)) 'entry entry)
-        (add-code! (list 'return))
+        (when (null? (cadadr (tree-content t)))
+          (add-code! (list 'return)))
         ;(printf "~a, ~a\n" (first (tree-content t)) entry)
         entry))
     
@@ -296,14 +298,11 @@
     (PL/T-scanner
      (read-string-from-file filename)))))
 
-(print-tree (parse "../sample/test_call.pl"))
+(print-tree (parse "../sample/test_null.pl"))
 
-(define t (parse "../sample/test_call.pl"))
+(define t (parse "../sample/test_null.pl"))
 (print-tree t)
 (define st (PL/T-analyzer t))
 
 (define code (PL/T-generator t st))
 (print-code (car code))
-;(PL/T-machine (first code) (second code))
-
-;(exec "../sample/test.pl")
