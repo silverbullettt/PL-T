@@ -23,9 +23,11 @@
 (define *logic-op* '(and or not))
 (define *comp-op* '(= \# < <= > >=))
 (define *str-op* '(@ <-))
+(define *array* '(const-array new-array temp-array))
 
 (define arith-op? (member-tester *arith-op*))
 (define logic-op? (member-tester *logic-op*))
 (define comp-op? (member-tester *comp-op*))
 (define cond-op? (member-tester (append *logic-op* *comp-op*)))
 (define str-op? (member-tester *str-op*))
+(define array? (member-tester *array*))

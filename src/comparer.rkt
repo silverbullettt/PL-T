@@ -44,5 +44,74 @@
  *comp-op*
  str-comp)
 
-(define (get-comparer type op)
-  ((comp-map 'lookup) type op))
+(define (make-vector<? bigger smaller)
+  (define (comp lv rv)
+    (define (iter l r)
+      (match (cons l r)
+        [(cons '() '()) #f]
+        [(cons '() (list _ ...)) #t]
+        [(cons (list _ ...) '()) #f]
+        [(cons (list lh lr ...) (list rh rr ...))
+         (cond [(bigger lh rh) #f]
+               [(smaller lh rh) #t]
+               [else (iter lr rr)])]))
+    (iter (vector->list lv) (vector->list rv)))
+  comp)
+
+(define (make-vector<=? bigger smaller)
+  (define (comp lv rv)
+    (define (iter l r)
+      (match (cons l r)
+        [(cons '() '()) #t]
+        [(cons '() (list _ ...)) #t]
+        [(cons (list _ ...) '()) #f]
+        [(cons (list lh lr ...) (list rh rr ...))
+         (cond [(bigger lh rh) #f]
+               [(smaller lh rh) #t]
+               [else (iter lr rr)])]))
+    (iter (vector->list lv) (vector->list rv)))
+  comp)
+
+(define (make-vector>? bigger smaller)
+  (define (comp lv rv)
+    (define (iter l r)
+      (match (cons l r)
+        [(cons '() '()) #f]
+        [(cons '() (list _ ...)) #f]
+        [(cons (list _ ...) '()) #t]
+        [(cons (list lh lr ...) (list rh rr ...))
+         (cond [(bigger lh rh) #t]
+               [(smaller lh rh) #f]
+               [else (iter lr rr)])]))
+    (iter (vector->list lv) (vector->list rv)))
+  comp)
+
+(define (make-vector>=? bigger smaller)
+  (define (comp lv rv)
+    (define (iter l r)
+      (match (cons l r)
+        [(cons '() '()) #t]
+        [(cons '() (list _ ...)) #f]
+        [(cons (list _ ...) '()) #t]
+        [(cons (list lh lr ...) (list rh rr ...))
+         (cond [(bigger lh rh) #t]
+               [(smaller lh rh) #f]
+               [else (iter lr rr)])]))
+    (iter (vector->list lv) (vector->list rv)))
+  comp)
+
+(define (make-array-comparer type op)
+  (let ([bigger ((comp-map 'lookup) type '>)]
+        [smaller ((comp-map 'lookup) type '<)])
+    (match op
+      ['= equal?]
+      ['\# (make-not equal?)]
+      ['< (make-vector<? bigger smaller)]
+      ['<= (make-vector<=? bigger smaller)]
+      ['> (make-vector>? bigger smaller)]
+      ['>= (make-vector>=? bigger smaller)])))
+
+(define (get-comparer array/atom type op)
+  (match array/atom
+    ['atom ((comp-map 'lookup) type op)]
+    ['array (make-array-comparer type op)]))

@@ -5,24 +5,28 @@
 (define PL/T-scanner
   (make-lex-parser 
    '(("~c(~c|~d|_|-|~?)*" ident)
-     ("CONST" const) ("VAR" var)
-     ("INT|REAL|BOOL|STRING" type) ; type
-     
-     ("~d+" int)
-     ("~d+.~d+" real)
-     ("#t|#f" bool)
-     ("\"([^\"\\]|\\\"|\\\\)*\"" string)
-     
+
      ("~+|-|~*|/" arith-op)        ; arithmetic operator
      ("=|#|<|<=|>|>=" comp-op)     ; compare operator
      ("AND|OR|NOT" logic-op)       ; logic operator
      ("@|<-" str-op)               ; string operator
      ("NULL" null) ; ("NULL?" null?) ; test null value
      
-     ("~(" \() (")" \))
-     ("~[" \[) ("]" \]) ; for array
-     ; ("{" \{) ("}" \}) ; for structure
+     ("CONST" const) ("VAR" var)
+     ("INT|REAL|BOOL|STRING" type) ; type
      
+     ("(~+|-)?~d+" int)
+     ("(~+|-)?~d+.~d+" real)
+     ("#t|#f" bool)
+     ("\"([^\"\\]|\\\"|\\\\)*\"" string)
+     
+     ("~(" \() (")" \))
+     
+     ("~[" \[) ("]" \]) ("SIZE" size) ; for array
+     ; ("NEW" new)
+     ("FOREACH" foreach) ("IN" in)
+     
+     ("{" \{) ("}" \}) ; for structure
      (":" :) ("," \,) (";" \;) (":=" assign) ("." \.)
      
      ("PROCEDURE" proc) ("->" ->)

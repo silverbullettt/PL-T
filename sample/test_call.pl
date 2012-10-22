@@ -26,11 +26,17 @@ PROCEDURE recur(x:INT) -> (INT)
   RETURN CALL recur((+ x 1))
  END;
  
-PROCEDURE max(x:VAR, y:VAR, less:(VAR, VAR)->(BOOL)) -> (VAR)
- BEGIN
-  IF CALL less(x, y) THEN RETURN y;
-  RETURN x
- END;
+!PROCEDURE max(x:VAR, y:VAR, less:(VAR, VAR)->(BOOL)) -> (VAR)!
+! BEGIN!
+!  IF CALL less(x, y) THEN RETURN y;!
+!  RETURN x!
+! END;!
+
+!PROCEDURE addn(n:INT) -> ((INT)->(INT))!
+! return a closure                      !
+! PROCEDURE adder(x:INT) -> (INT)       !
+!  RETURN (+ n x);                      !
+! RETURN adder;                         !
 
 BEGIN
  x1, x2 := CALL divide((+ CALL middle(23, CALL foo()) 100), 17);

@@ -60,8 +60,14 @@
   (define (get-token2-type) (if (null? (cdr tokens))
                                 #f
                                 (tok-type (second tokens))))
+  (define (get-token3-type) (if (null? (cddr tokens))
+                                #f
+                                (tok-type (third tokens))))
+  
   (define (get-token)
     (if (null? tokens) #f  (first tokens)))
+  (define (get-token2)
+    (second tokens))
   (define (get-token!)
     (let ([tok (get-token)])
       (begin (set! tokens (cdr tokens)) tok)))
@@ -72,7 +78,7 @@
     (let ([tok (get-token)])
       (if (match? tok-type)
           (get-token!)
-          (error 'PL/0-parser "Error token: ~a, excepted: ~a, given: ~a -- L~a:~a"
+          (error 'PL/0-parser "Error token: (~a) excepted: (~a) given: (~a) -- L~a:~a"
                  (second tok) tok-type (first tok) (third tok) (fourth tok)))))
   
   (define (new-tree type content [pos #f])
@@ -95,7 +101,7 @@
       (match! '\.)
       (if (null? tokens)
           (new-tree 'program blk)
-          (report-error 'program))))
+          (report-error 'program "Unknown error"))))
   
   (define (block)
     (define (iter) ; for procedure
@@ -122,6 +128,24 @@
     (let* ([con (match! 'const)] [content (iter)])
       (new-tree 'const content)))
   
+  
+  (define (type)
+    ; (printf "%%% type:~a%%%\n" (get-token))
+    (match (get-token-type)
+      [(or 'type 'var)
+       (let* ([ty-tok (get-token!)]
+              [ty (string->symbol
+                   (string-downcase
+                    (tok-content ty-tok)))])
+         (if (eq? (get-token-type) '\[)
+             (begin
+               (match! '\[)
+               (match! '\])
+               (new-tree 'type (list 'array ty) (tok-pos ty-tok)))
+             (new-tree 'type (list 'atom ty) (tok-pos ty-tok))))]
+      [_ (report-error 'type '(int real bool string var))]))
+  
+  
   ; new declare list
   (define (var-decl)
     (define (decl)
@@ -131,11 +155,10 @@
                (let ([expr (exp)])
                  (match! '\))
                  (list id-tree expr))]
-          [': (match! ':) (list id-tree (string->symbol
-                                         (string-downcase
-                                          (second (match! 'type)))))]
+          [': (match! ':) (list id-tree (type))]
           [(or '\, '\;) id-tree]
           [_ (report-error 'var '(\, \( : \;) (get-token!))])))
+    
     (define (iter)
       (let* ([id (decl)] [delim (get-token!)])
         (match (tok-type delim)
@@ -152,12 +175,11 @@
           [': (match! ':)
               (if (or (eq? (get-token-type) 'var)
                       (eq? (get-token-type) 'type))
-                  (list id-tree (string->symbol
-                                 (string-downcase
-                                  (second (get-token!)))))
+                  (list id-tree (type))
                   (report-error 'procedure '(type var) (get-token!)))]
           [(or '\, '\)) id-tree]
           [_ (report-error 'procedure '(\, \) :) (get-token!))])))
+    
     (define (var-iter)
       (if (eq? (get-token-type) '\))
           '()
@@ -166,22 +188,22 @@
               ['\, (get-token!) (cons id (var-iter))]
               ['\) (list id)]
               [_ (report-error 'procedure '(\, \)) (get-token!))]))))
+  
     (define (type-iter)
       (cond [(eq? (get-token-type) '\)) '()]
             [(or (eq? (get-token-type) 'var)
                  (eq? (get-token-type) 'type))
-             (let ([type (string->symbol
-                          (string-downcase
-                           (second (get-token!))))])
+             (let ([type (type)])
                (match (get-token-type)
                  ['\, (get-token!) (cons type (type-iter))]
                  ['\) (list type)]
                  [_ (report-error 'procedure '(\, \)) (get-token!))]))]
             [else (report-error 'procedure '(type var) (get-token!))]))
-
-    (let* ([proc-tok (match! 'proc)] [id-tok (match! 'ident)]
+    
+    (let* ([proc-tok (match! 'proc)]
+           [id-tok (match! 'ident)]
            [lb1 (match! '\()] [var-list (var-iter)] [rb1 (match! '\))]
-           [arror (match! '->)]
+           [arrow (match! '->)]
            [lb2 (match! '\()] [type-list (type-iter)] [rb2 (match! '\))]
            [blk (block)]
            [semi2 (match! '\;)])
@@ -197,12 +219,14 @@
       ['print (statement-print)]
       ['if (statement-if)]
       ['while (statement-while)]
+      ['foreach (statement-foreach)]
       ['ident (statement-assign)]
       ['\. (new-tree 'statement '())]
       [_ (report-error 'statement
                        '(begin end
                          call return
-                         if then while do
+                         if then
+                         while foreach do
                          ident
                          read print))]))
   
@@ -213,15 +237,16 @@
                     (cons (statement) (iter)))]
         ['end '()]
         [_ (report-error 'statement-begin '(\; end))]))
-    (let ([stmts null])
-      (match! 'begin)
-      (set! stmts (cons (statement) (iter)))
-      (match! 'end)
-      (new-tree 'begin stmts)))
+    (let* ([beg-tok (match! 'begin)]
+           [stmts (cons (statement) (iter))]
+           [end-tok (match! 'end)])
+      (new-tree 'begin stmts (tok-pos beg-tok))))
   
   (define (var-list)
     (define (iter)
-      (let ([id (make-id (match! 'ident))])
+      (let ([id (if (eq? (get-token2-type) '\[)
+                    (array-ref)
+                    (make-id (match! 'ident)))])
         (match (get-token-type)
           ['\, (match! '\,) (cons id (iter))]
           ['assign (list id)]
@@ -257,28 +282,44 @@
     (let* ([ret-tok (match! 'return)]
            [expr-list (exp-list)])
       (new-tree 'return expr-list (tok-pos ret-tok))))
-     
+  
   (define (statement-read)
-    (let* ([read-tok (match! 'read)] [id (match! 'ident)])
-      (new-tree 'read (make-id id))))
+    (let* ([read-tok (match! 'read)])
+      (new-tree 'read
+                (if (and (eq? (get-token2-type) '\[)
+                         (is-connect? (get-token) (get-token2)))
+                    (array-ref)
+                    (make-id (get-token!)))
+                (tok-pos read-tok))))
   
   (define (statement-print)
     (let* ([print-tok (match! 'print)] [exps (exp-list)])
-      (new-tree 'print exps)))
+      (new-tree 'print exps (tok-pos print-tok))))
   
   (define (statement-if)
     (let* ([if-tok (match! 'if)]
            [condi (condition)]
            [then-tok (match! 'then)]
            [stmt (statement)])
-      (new-tree 'if (list condi stmt))))
+      (new-tree 'if (list condi stmt) (tok-pos if-tok))))
   
   (define (statement-while)
     (let* ([while-tok (match! 'while)]
            [condi (condition)]
            [do-tok (match! 'do)]
            [stmt (statement)])
-      (new-tree 'while (list condi stmt))))
+      (new-tree 'while (list condi stmt) (tok-pos while-tok))))
+  
+  (define (statement-foreach)
+    (let* ([for-tok (match! 'foreach)]
+           [lbrac (match! '\()]
+           [var (make-id (match! 'ident))]
+           [in (match! 'in)]
+           [arr (array)]
+           [rbrac (match! '\))]
+           [do-tok (match! 'do)]
+           [stmt (statement)])
+      (new-tree 'foreach (list var arr stmt) (tok-pos for-tok))))
   
   ; 由于 call 的返回值可能不止1个,因此 assign 参数个数留给 analyzer 检查
   (define (statement-assign)
@@ -288,9 +329,10 @@
   ; ========================= expression ==================
   
   (define (const-value)
-    (if (member (get-token-type) '(int real bool string))
-        (make-const (get-token!))
-        (report-error 'const-value '(int real bool string))))
+    (match (get-token-type)
+      [(or 'int 'real 'bool 'string) (make-const (get-token!))]
+      ['\[ (const-array)]
+      [_ (report-error 'const-value '(int real bool string))]))
   
   ; !!! 当作为表达式的一部分时, call 相应的函数只能返回一个值
   (define (condition)
@@ -299,7 +341,9 @@
           (begin (match! '\)) '())
           (cons (exp) (iter))))
     (match (get-token-type)
-      ['ident (make-id (get-token!))]
+      ['ident (if (eq? (get-token2-type) '\[)
+                  (array-ref)
+                  (make-id (get-token!)))]
       ['bool (make-const (get-token!))]
       ['\(
        (match! '\()       
@@ -340,8 +384,11 @@
           (begin (match! '\)) '())
           (cons (arithmetic) (iter))))
     (match (get-token-type)
-      ['ident (make-id (match! 'ident))]
+      ['ident (if (eq? (get-token2-type) '\[)
+                  (array-ref)
+                  (make-id (get-token!)))]
       [(or 'int 'real) (make-const (get-token!))]
+      ['size (size)]
       ['\(
        (match! '\()
        (if (eq? (get-token-type) 'arith-op)
@@ -362,7 +409,9 @@
           (begin (match! '\)) '())
           (cons (exp) (<-iter))))
     (match (get-token-type)
-      ['ident (make-id (get-token!))]
+      ['ident (if (eq? (get-token2-type) '\[)
+                  (array-ref)
+                  (make-id (get-token!)))]
       ['string (make-const (get-token!))]
       ['\(
        (match! '\()
@@ -380,12 +429,100 @@
       ['call (statement-call)]
       [_ (report-error 'str *str-op*)]))
   
-  (define (exp)
+  
+  (define (array)
     (match (get-token-type)
       ['ident (make-id (get-token!))]
+      ['type (new-array)]
+      ['\[ (temp-array)]
+      ['null (make-const (get-token!))]
+      [_ (report-error 'array '(ident type \[ null))]))
+  
+  (define (const-array)
+    (define (iter type)
+      (let ([elem (get-token!)])
+        (if (eq? (tok-type elem) type)
+            (match (get-token-type)
+              ['\, (get-token!) (cons (make-const elem) (iter type))]
+              ['\] (list (make-const elem))]
+              [_ (report-error 'const-array '(\, \]))])
+            (report-error 'const-array type elem))))
+    (if (member (get-token2-type) '(int real bool string))
+        (let* ([lbrac (get-token!)]
+               [element-ty (get-token-type)]
+               [elems (iter element-ty)]
+               [rbrac (get-token!)])
+          (new-tree 'const-array (list element-ty elems) (tok-pos lbrac)))
+        (begin ; unknown array type
+          (get-token!) ; left bracket
+          (report-error 'const-array '(int real bool string)))))
+  
+  (define (temp-array)
+    (define (iter)
+      (if (eq? (get-token-type) '\])
+          '()
+          (let ([elem (exp)])
+            (match (get-token-type)
+              ['\, (get-token!) (cons elem (iter))]
+              ['\] (list elem)]
+              [_ (report-error 'temp-array '(\, \]))]))))
+    (let* ([lbrac (get-token!)]
+           [elems (iter)]
+           [rbrac (get-token!)])
+      (new-tree 'temp-array elems (tok-pos lbrac))))
+  
+  (define (new-array)
+    (let* ([type-tok (get-token!)]
+           [lbrac (match! '\[)]
+           [size (int)]
+           [rbrac (match! '\])])
+      (new-tree 'new-array (list
+                            (string->symbol
+                             (string-downcase (tok-content type-tok)))
+                            size)
+                (tok-pos type-tok))))
+  
+  (define (size)
+    (let* ([size-tok (match! 'size)]
+           [lbrac (match! '\()]
+           [arr (array)]
+           [rbrac (match! '\))])
+      (new-tree 'size arr (tok-pos size-tok))))
+  
+
+  (define (int)
+    (match (get-token-type)
+      ['int (make-const (get-token!))]
+      ['ident (if (eq? (get-token2-type) '\[)
+                  (array-ref)
+                  (make-id (get-token!)))]
+      ['size (size)]
+      [_ (report-error 'integer '(int id))]))
+  
+  (define (array-ref)
+    (let* ([id-tok (get-token!)]
+           [lbrac (match! '\[)]
+           [index (int)]
+           [rbrac (match! '\])])
+      (new-tree 'array-ref (list (make-id id-tok) index) (tok-pos id-tok))))
+  
+  (define (is-connect? t1 t2)
+    (and (= (third t1) (third t2))
+         (= (+ (fourth t1) (string-length (second t1)))
+            (fourth t2))))
+  
+  (define (exp)
+    (match (get-token-type)
+      ['ident (if (and (eq? (get-token2-type) '\[)
+                       (is-connect? (get-token) (get-token2)))
+                  (array-ref)
+                  (make-id (get-token!)))]
       [(or 'int 'real) (arithmetic)]
       ['bool (condition)]
       ['string (str)]
+      ['type (new-array)]
+      ['\[ (temp-array)]
+      ['size (size)]
       ['null (make-const (get-token!))]
       ['\(
        (match (get-token2-type)
@@ -457,5 +594,5 @@
    (PL/T-scanner
     (read-string-from-file filename))))
 
-(print-tree (parse "../sample/test_null.pl"))
+(print-tree (parse "../sample/test_array.pl"))
 (newline)
